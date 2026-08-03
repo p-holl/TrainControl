@@ -94,16 +94,13 @@ class InputManager:
                 self.control.set_acceleration_control(train, device_path, acc, cause=device_path)
                 if self.terminus:
                     self.terminus.correct_move(train, x if acc == 0 else 0)
-                # if 'stop' in actions:
-                #     if actions['stop'] == 'press':
-                #         self.control.emergency_stop(train, cause=device_path)
-                #     else:  # double-click
-                #         self.control.emergency_stop_all(train, cause=device_path)
-                #         # self.control.power_off(train, cause=device_path)
-                if 'reverse' in actions and actions['reverse'] == 'press':
-                    self.control.reverse(train, cause=device_path, emergency_stop=True)
-                    if self.terminus:
-                        self.terminus.on_reversed(train)
+                if 'reverse' in actions:
+                    if actions['reverse'] == 'press':
+                        self.control.reverse(train, cause=device_path, emergency_stop=True)
+                        if self.terminus:
+                            self.terminus.on_reversed(train)
+                    else:  # 'double'
+                        self.control.emergency_stop_all(train, cause=device_path)
                 if 'terminus' in actions:
                     if self.terminus:
                         if actions['terminus'] == 'press':
@@ -157,12 +154,12 @@ def get_twin_joystick_state(data: List) -> Tuple[float, float, Dict[str, bool]]:
 
 
 TWIN_JOYSTICK_BIND = {
-    'A': 'F1',
+    'A': 'F2',
     'B': 'F3',
-    'X': 'F2',
-    'Y': 'F4',
+    'X': 'F1',
+    'Y': 'terminus',
     'R/LT': 'reverse',
-    'R/LB': 'terminus',
+    'R/LB': 'reverse',
 }
 
 
@@ -186,8 +183,8 @@ def get_vr_park_state(data: List) -> Tuple[float, float, Dict[str, bool]]:
 
 VR_PARK_BIND = {
     'A/T': 'reverse',
-    'B/B': 'terminus',
-    'C': 'F1',
+    'B/B': 'F1',
+    'C': 'terminus',
     'D': 'F2',
 }
 
