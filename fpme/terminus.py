@@ -599,11 +599,11 @@ TARGETS = {
         5: ("Eilzug", "Radeburg"),
     },
     MW_TGV: {
-        1: ('Tee - Schee - Weh',  "Waldbrunn, über: Neuffen"),
-        2: ('Tee - Schee - Weh', "Neuffen"),
-        3: ('Tee - Schee - Weh', "Wiesbaden, über: Waldbrunn"),
-        4: ('Tee - Schee - Weh',  "Böblingen"),
-        5: ('Tee - Schee - Weh',  "Radeburg, über: Waldbrunn"),
+        1: ('Tee - Schee - Weh',  "Paris, über: Neuffen"),
+        2: ('Tee - Schee - Weh', "Straßburg"),
+        3: ('Tee - Schee - Weh', "Marseille, über: Wiesbaden"),
+        4: ('Tee - Schee - Weh',  "Lyon, über: Böblingen"),
+        5: ('Tee - Schee - Weh',  "Toulouse, über: Radeburg"),
     }
 }
 
