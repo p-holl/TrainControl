@@ -109,7 +109,9 @@ class TrainState:
 class TrainControl:
 
     def __init__(self, trains=TRAINS, ext_trains=EXT_TRAINS):
-        self.trains = trains
+        self.trains = tuple(trains)
+        self.ext_trains = tuple(ext_trains)
+        self.all_trains = trains + ext_trains
         self.states = {train: TrainState(train, set(), active_functions={f: True for f in train.functions if f.default_status}) for train in trains}
         self.states.update({train: TrainState(train, set(), active_functions={}, speed=100., target_speed=100., externally_managed=True) for train in ext_trains})
         self.generator = SubprocessGenerator(max_generators=2)
@@ -289,6 +291,8 @@ class TrainControl:
         """Immediately stop `train`."""
         # print(f"Emergency stop {train}, mm1={train.stop_by_mm1_reverse}")
         state = self[train]
+        if state.externally_managed:
+            return
         with state.modify_lock:
             state.target_speed *= 0.
             state.speed = None
@@ -402,6 +406,8 @@ class TrainControl:
             self.last_power_off = (time.perf_counter(), f"Power failure on {failing}")
         for train in self.trains:
             self._update_train(train, dt)
+        for train in self.ext_trains:
+            self._update_ext_train(train, dt)
 
     def _update_train(self, train: Train, dt: float):  # called by update_trains()
         state = self[train]
@@ -415,7 +421,7 @@ class TrainControl:
                 state.signed_distance += speed_cm_s * dt
                 state.abs_distance += abs(speed_cm_s) * dt
             # --- Deactivate after 30 seconds of inactivity ---
-            if state.acc_input != 0 or state.speed != 0 or state.externally_managed:
+            if state.acc_input != 0 or state.speed != 0:
                 state.inactive_time = 0
             elif state.acc_input == 0 and state.speed == 0 and state.is_active:
                 state.inactive_time += dt
@@ -459,7 +465,18 @@ class TrainControl:
         currently_in_reverse = direction < 0
         self._send(train, speed_code, currently_in_reverse, functions)
 
+    def _update_ext_train(self, train: Train, dt):
+        state = self[train]
+        with state.modify_lock:
+            state.inactive_time = 0
+            if state.speed:
+                speed_cm_s = state.speed * 27.78 / 87
+                state.signed_distance += speed_cm_s * dt
+                state.abs_distance += abs(speed_cm_s) * dt
+
     def _send(self, train: Train, speed_code: Optional[int], currently_in_reverse: bool, functions: dict):
+        if train.address < 0:
+            return
         data = (train.address, speed_code, currently_in_reverse, functions)
         if data != self._last_sent[train]:
             self._last_sent[train] = data

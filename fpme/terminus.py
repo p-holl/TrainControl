@@ -356,6 +356,8 @@ class Terminus:
 
         def process_entry(entering: ParkedTrain, duration=KEEP_ENTRY_OPEN_SEC, interval=0.01, max_train_length=130):
             for _ in range(int(duration / interval)):
+                if not entering.train.trips_contacts and abs(entering.state.signed_distance - entering.dist_request) >= 20:
+                    break
                 if self.control.generator.contact_status(self.port)[0]:
                     print(f"Terminus: Contact tripped. {entering}")
                     break
@@ -364,7 +366,8 @@ class Terminus:
                 entering.state.set_speed_limit('terminus', None, new_track=entering.prev_track)
                 self.clear_entering()
                 self.control.emergency_stop(train, "train did not enter terminus")
-                self.trains.remove(entering)
+                if entering in self.trains:
+                    self.trains.remove(entering)
                 return
             # --- Contact tripped ---
             entering.dist_trip = entering.state.signed_distance
@@ -390,7 +393,12 @@ class Terminus:
             while True:
                 time.sleep(interval)
                 # print(f"Sensor: {self.control.generator.contact_status(self.port)[0]}")
-                if not self.control.generator.contact_status(self.port)[0]:  # possible sensor clear
+                # --- External trains ---
+                if not train.trips_contacts:
+                    if entering.dist_clear is None and entering.get_position() > CONTACT_OFFSET + max_train_length:
+                        entering.dist_clear = entering.state.signed_distance
+                # --- Managed trains ---
+                elif not self.control.generator.contact_status(self.port)[0]:  # possible sensor clear
                     if entering.dist_clear is None:
                         print("Sensor clear. Waiting for possible next wheel...")
                         entering.dist_clear = entering.state.signed_distance
