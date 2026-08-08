@@ -137,7 +137,7 @@ INTERREGIO_BLAU =   TrainInfo("IC", "🚉", .3, switch_avoidance=1., max_speed_b
 RB_ROT =            TrainInfo("RB", "🚉", .7, switch_avoidance=.55, max_speed_by_track={'regional': 140})
 SILBERLING =        TrainInfo("N/E", "🚉", .6, switch_avoidance=.55, max_speed_by_track={'regional': 140})  # Nahverkehrszug / Eilzug
 RE_TUERKIS =        TrainInfo("RE", "🚉", .35, max_speed_in_station=(55, 55, 65), switch_avoidance=.45, max_speed_by_track={'regional': 140})
-TGV_ =           TrainInfo(None, "🚂/🛲", .5)
+TGV_ =           TrainInfo(None, "🚂/🛲", .5, max_delay=15, delay_rate=.1)
 
 
 # --- Passenger trains ---
