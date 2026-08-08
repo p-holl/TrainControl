@@ -35,6 +35,7 @@ ENTRY_SIGNAL = 3
 ENTRY_POWER = 4  # no power when open
 
 CONTACT_OFFSET = -20  # distance (cm) how far the contact trigger extends beyond the board
+KEEP_ENTRY_OPEN_SEC = 8
 
 
 @dataclass
@@ -350,7 +351,7 @@ class Terminus:
         self.relay.open_channel(ENTRY_SIGNAL)
         self.relay.close_channel(ENTRY_POWER)
 
-        def process_entry(entering: ParkedTrain, duration=6, interval=0.01, max_train_length=130):
+        def process_entry(entering: ParkedTrain, duration=KEEP_ENTRY_OPEN_SEC, interval=0.01, max_train_length=130):
             for _ in range(int(duration / interval)):
                 if self.control.generator.contact_status(self.port)[0]:
                     print(f"Terminus: Contact tripped. {entering}")
