@@ -13,7 +13,7 @@ from .relay8 import RelayManager
 from .signal_gen import list_com_ports
 from .terminus import Terminus
 from .train_control import TrainControl
-from .train_def import Train, TrainInfo, obstacle
+from .train_def import Train, obstacle, MW_TGV
 
 
 class TKGUI:
@@ -176,6 +176,7 @@ class TKGUI:
         self.window.bind("<Control-Key-5>", lambda e: self.terminus_select(5))
         self.window.bind("<BackSpace>", lambda e: self.clear_platform())
         self.window.bind("<d>", lambda e: print(self.control.generator.format_state()))
+        self.window.bind("<Return>", lambda e: self.terminus and self.terminus.request_entry(MW_TGV))
         self.window.protocol("WM_DELETE_WINDOW", lambda: self.terminate())
 
     def launch(self):

@@ -136,6 +136,7 @@ INTERREGIO_BLAU =   TrainInfo("IC", "🚉", .3, switch_avoidance=1., max_speed_b
 RB_ROT =            TrainInfo("RB", "🚉", .7, switch_avoidance=.55, max_speed_by_track={'regional': 140})
 SILBERLING =        TrainInfo("N/E", "🚉", .6, switch_avoidance=.55, max_speed_by_track={'regional': 140})  # Nahverkehrszug / Eilzug
 RE_TUERKIS =        TrainInfo("RE", "🚉", .35, max_speed_in_station=(55, 55, 65), switch_avoidance=.45, max_speed_by_track={'regional': 140})
+TGV_ =           TrainInfo(None, "🚂/🛲", .5)
 
 
 # --- Passenger trains ---
@@ -167,9 +168,11 @@ DIESEL = Train(GUETER, "V 60 (BR 360)", "Märklin 29155", 72, speeds(180), 25., 
                functions=(LIGHT, SLOW_MODE, INSTANT_ACCELERATION))
 E40 = Train(GUETER, "BR E40", "Märklin 39140", 23, speeds(280, 1.0), 30., img_path="Thumb_E40.png", stop_by_mm1_reverse=False,
             functions=(LIGHT, INSTANT_ACCELERATION, TrainFunction('Horn', 1, False, (TAG_SPECIAL_SOUND,))))  # ToDo which ID is Horn?
-
+MW_TGV = Train(TGV_, 'TGV', "Märklin my world 29304", -1, [None]*15, 0., functions=(), img_path="MW_TGV.png")
+MW_LOK = Train(GUETER, 'Dampf/Diesel/E', 'Märklin my world 36270', -1, [None]*15, 0., functions=(), img_path="MW_Lok.png")
 
 TRAINS = [ICE, S, BUS, E_RB, E_BW, ROT, BEIGE,   E40, DIESEL, DAMPF]
+EXT_TRAINS = [MW_TGV, MW_LOK]
 
 TRAINS_BY_NAME = {train.id: train for train in TRAINS}
 
