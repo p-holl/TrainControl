@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 from .helper import schedule_at_fixed_rate
 from .signal_gen import SubprocessGenerator, MM1, MM2
-from .train_def import TRAINS, Train, TAG_DEFAULT_LIGHT, TAG_DEFAULT_SOUND, TAG_SPECIAL_SOUND, TrainFunction
+from .train_def import TRAINS, Train, TAG_DEFAULT_LIGHT, TAG_DEFAULT_SOUND, TAG_SPECIAL_SOUND, TrainFunction, EXT_TRAINS
 
 
 def get_preferred_protocol(train: Train):
@@ -41,6 +41,7 @@ class TrainState:
     custom_acceleration_handler: Callable = None
     track: str = None  # Which part of the tracks the train is on, e.g. 'high-speed', 'regional', None=Unknown
     restore_speed_after_reset = False  # e.g. trains entering station
+    externally_managed: bool = False
 
     def __repr__(self):
         return f"{self.train.name} {self.speed:.0f} -> {self.target_speed:.0f} func={self.active_functions} controlled by {len(self.controllers)}"
@@ -107,9 +108,10 @@ class TrainState:
 
 class TrainControl:
 
-    def __init__(self, trains=TRAINS):
+    def __init__(self, trains=TRAINS, ext_trains=EXT_TRAINS):
         self.trains = trains
         self.states = {train: TrainState(train, set(), active_functions={f: True for f in train.functions if f.default_status}) for train in trains}
+        self.states.update({train: TrainState(train, set(), active_functions={}, speed=100., target_speed=100., externally_managed=True) for train in ext_trains})
         self.generator = SubprocessGenerator(max_generators=2)
         self.speed_limit = None
         self.global_status_by_tag: Dict[str, bool] = {}
@@ -413,13 +415,13 @@ class TrainControl:
                 state.signed_distance += speed_cm_s * dt
                 state.abs_distance += abs(speed_cm_s) * dt
             # --- Deactivate after 30 seconds of inactivity ---
-            if state.acc_input == 0 and state.speed == 0 and state.is_active:
+            if state.acc_input != 0 or state.speed != 0 or state.externally_managed:
+                state.inactive_time = 0
+            elif state.acc_input == 0 and state.speed == 0 and state.is_active:
                 state.inactive_time += dt
                 if not state.is_active:
                     self.set_train_functions_by_tag(train, TAG_DEFAULT_LIGHT, False)
                     self.set_train_functions_by_tag(train, TAG_DEFAULT_SOUND, False)
-            elif state.acc_input != 0 or state.speed != 0:
-                state.inactive_time = 0
             # --- Input ---
             if state.force_stopping:
                 state.target_speed = math.copysign(0, state.target_speed)

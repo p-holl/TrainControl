@@ -241,6 +241,9 @@ class Terminus:
             self.clear_entering()
         print(self.trains)
 
+    def is_in_terminus(self, train: Train):
+        return any(t.train == train for t in self.trains)
+
     def remove_train(self, train: Train):
         if self.entering and self.entering.train == train:
             self.entering.state.track = self.entering.prev_track

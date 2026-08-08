@@ -176,7 +176,7 @@ class TKGUI:
         self.window.bind("<Control-Key-5>", lambda e: self.terminus_select(5))
         self.window.bind("<BackSpace>", lambda e: self.clear_platform())
         self.window.bind("<d>", lambda e: print(self.control.generator.format_state()))
-        self.window.bind("<Return>", lambda e: self.terminus and self.terminus.request_entry(MW_TGV))
+        self.window.bind("<Return>", lambda e: self.external_train_enter())
         self.window.protocol("WM_DELETE_WINDOW", lambda: self.terminate())
 
     def launch(self):
@@ -210,6 +210,14 @@ class TKGUI:
     def clear_platform(self):
         self.terminus.set_empty(self.selected_platform)
         self.selected_platform = None
+
+    def external_train_enter(self, train=MW_TGV):
+        if not self.terminus:
+            return
+        if self.terminus.is_in_terminus(train):
+            self.terminus.remove_train(train)
+        else:
+            self.terminus.request_entry(train)
 
     def update_ui(self):
         now = time.perf_counter()
