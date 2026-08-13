@@ -13,7 +13,7 @@ from fpme.audio import play_announcement, play_background_loop, async_play, set_
 from fpme.helper import schedule_at_fixed_rate
 from fpme.relay8 import Relay8
 from fpme.train_control import TrainControl, TrainState
-from fpme.train_def import Train, ICE, S, E_RB, E_BW, E40, DAMPF, BEIGE, ROT, DIESEL, BUS, train_by_name, MW_TGV
+from fpme.train_def import Train, ICE, S, E_RB, E_BW, E40, DAMPF, BEIGE, ROT, DIESEL, BUS, train_by_name, MW_TGV, SHUTTLE
 
 SWITCH_STATE = {  # True -> open_channel, False -> close_channel
     1: {6: False, 8: True},
@@ -604,7 +604,14 @@ TARGETS = {
         3: ('Tee - Schee - Weh', "Marseille, über: Wiesbaden"),
         4: ('Tee - Schee - Weh',  "Lyon, über: Böblingen"),
         5: ('Tee - Schee - Weh',  "Toulouse, über: Radeburg"),
-    }
+    },
+    SHUTTLE: {
+        1: ("Regional-Express", "Waldbrunn, über: Neuffen"),
+        2: ("Regional-Express", "Neuffen"),
+        3: ("Regional-Express", "Wiesbaden"),
+        4: ("Regional-Express", "Böblingen"),
+        5: ("Regional-Express", "Radeburg"),
+    },
 }
 
 
