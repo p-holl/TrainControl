@@ -19,17 +19,17 @@ class TrainFunction:
     id: int
     default_status: bool
     tags: Tuple[str]
-    cooldown: float = 30.
+    cooldown: float = 15.
     default_duration: Optional[float] = 1.1
 
     def __repr__(self):
         return self.name + ":" + str(self.id)
 
 
-LIGHT = TrainFunction('Licht', 0, False, (TAG_DEFAULT_LIGHT,))
-SLOW_MODE = TrainFunction("Langsam-Modus", 3, False, ())
-INSTANT_ACCELERATION = TrainFunction("Instantane Beschleunigung", 4, True, ())
-SOUND = TrainFunction("Motor", 2, False, (TAG_DEFAULT_SOUND,))
+LIGHT = TrainFunction('Licht', 0, False, (TAG_DEFAULT_LIGHT,), cooldown=1.)
+SLOW_MODE = TrainFunction("Langsam-Modus", 3, False, (), cooldown=0)
+INSTANT_ACCELERATION = TrainFunction("Instantane Beschleunigung", 4, True, (), cooldown=0)
+SOUND = TrainFunction("Motor", 2, False, (TAG_DEFAULT_SOUND,), cooldown=3.)
 
 
 @dataclass(frozen=True)
@@ -145,12 +145,12 @@ TGV_ =           TrainInfo(None, "🚂/🛲", .5, max_delay=15, delay_rate=.1)
 ICE = Train(ICE_, "BR 402 (ICE 2)", "Märklin 29786", 3, speeds(310, 1.4), 25., img_path="ICE.png",
             functions=(LIGHT, SLOW_MODE, INSTANT_ACCELERATION))
 E_BW = Train(INTERREGIO_BLAU, "BR 101", "Märklin 37394", 1, (0, 13, 25, 46, 67, 86, 108, 125, 140, 156, 173, 191, 201, 215, 226), 30., img_path="E-Lok BW.png", stop_by_mm1_reverse=False,
-             functions=(LIGHT, TrainFunction("Nebelscheinwerfer", 2, False, (TAG_SPECIAL_LIGHT,), 0., None), TrainFunction("Fahrtlicht hinten", 3, False, (TAG_SPECIAL_LIGHT,)), INSTANT_ACCELERATION))
+             functions=(LIGHT, TrainFunction("Nebelscheinwerfer", 2, False, (TAG_SPECIAL_LIGHT,), 1., None), TrainFunction("Fahrtlicht hinten", 3, False, (TAG_SPECIAL_LIGHT,), 1.), INSTANT_ACCELERATION))
 E_RB = Train(RB_ROT, "BR 146.1", "Märklin 29475", 24, speeds(210, exponent=1.1), 30., supports_mm2=False, stop_by_mm1_reverse=False, img_path="E-Lok DB.png")
 S = Train(S_, "BR 648.2 (LINT 41)", "Märklin 37730", 48, (0, 2, 5, 10, 15, 22, 30, 41, 51, 64, 77, 91, 106, 120, 136), 35., img_path="S-Bahn.png",
-          functions=(LIGHT, TrainFunction("Innenbeleuchtung", 1, False, (TAG_DEFAULT_LIGHT,)), SOUND, TrainFunction("Horn", 3, False, (TAG_SPECIAL_SOUND,)), INSTANT_ACCELERATION))
+          functions=(LIGHT, TrainFunction("Innenbeleuchtung", 1, False, (TAG_DEFAULT_LIGHT,), 1.), SOUND, TrainFunction("Horn", 3, False, (TAG_SPECIAL_SOUND,)), INSTANT_ACCELERATION))
 BR650 = Train(BR650_, "BR 650", "Märklin", 65, (0, 2, 5, 10, 15, 22, 30, 41, 51, 64, 77, 91, 106, 120, 136), 35., img_path="S-Bahn.png",
-          functions=(LIGHT, TrainFunction("Innenbeleuchtung", 1, False, (TAG_DEFAULT_LIGHT,)), SOUND, TrainFunction("Horn", 3, False, (TAG_SPECIAL_SOUND,)), INSTANT_ACCELERATION))
+          functions=(LIGHT, TrainFunction("Innenbeleuchtung", 1, False, (TAG_DEFAULT_LIGHT,), 1.), SOUND, TrainFunction("Horn", 3, False, (TAG_SPECIAL_SOUND,)), INSTANT_ACCELERATION))
 BEIGE = Train(SILBERLING, "BR 218", "Märklin 3074", 73, (0, None, 13, 20, 34, 60, 85, 100, 120, 141, 157, 172, 188, 204, 220), 25., img_path="Thumb_BR218_Beige.png",
               functions=(LIGHT, SLOW_MODE, INSTANT_ACCELERATION))
 ROT = Train(RE_TUERKIS, 'BR 218', "Märklin 3075", 74, speeds(110), 40., img_path="Thumb_BR218_Rot.png",
