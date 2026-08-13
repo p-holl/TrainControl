@@ -322,18 +322,7 @@ class Terminus:
                 print(f"{train} is already in terminus: {t.platform} @ {t.get_position()}, cleared={t.has_cleared_contact}")
                 # --- Play sound if parked ---
                 if t.state.speed == 0 and self.control.sound >= 1 and len(t.announcements_played) < 2 and time.perf_counter() > t.time_last_announcement + t.duration_last_announcement and t.time_stopped is not None:
-                    print(f"Previous announcements: {t.announcements_played}")
-                    if 'connections' not in t.announcements_played and time.perf_counter() < t.time_stopped + 15:  # first announcement is about other trains in station (only if any)
-                        passenger_trains = [t_ for t_ in self.trains if t_ != t and t_.train.is_passenger_train and (t_.state.speed == 0 or (t_.state.speed > 0) == t_.entered_forward)]
-                        if passenger_trains:
-                            connections = [(t_.train, t_.platform) for t_ in passenger_trains]
-                            t.announcements_played += ('connections',)
-                            t.time_last_announcement = time.perf_counter()
-                            t.duration_last_announcement = play_connections(t.platform, connections)
-                    else:
-                        t.announcements_played += ('delay',)
-                        t.time_last_announcement = time.perf_counter()
-                        t.duration_last_announcement = play_special_announcement(t.train, t.platform, t.delay_minutes, time.perf_counter() - t.time_stopped)
+                    self.play_connections(t)
                 else:
                     print(f"Cannot play announcement. sound={self.control.sound}, speed={t.state.speed}, previous={t.announcements_played}, time={time.perf_counter() - t.time_last_announcement - t.duration_last_announcement}")
                 return
@@ -432,6 +421,20 @@ class Terminus:
                 # else:
                     # print(f"{t} still in station")
 
+    def play_connections(self, t: ParkedTrain):
+        print(f"Previous announcements: {t.announcements_played}")
+        if 'connections' not in t.announcements_played and time.perf_counter() < t.time_stopped + 15:  # first announcement is about other trains in station (only if any)
+            passenger_trains = [t_ for t_ in self.trains if t_ != t and t_.train.is_passenger_train and (t_.state.speed == 0 or (t_.state.speed > 0) == t_.entered_forward)]
+            if passenger_trains:
+                connections = [(t_.train, t_.platform) for t_ in passenger_trains]
+                t.announcements_played += ('connections',)
+                t.time_last_announcement = time.perf_counter()
+                t.duration_last_announcement = play_connections(t.platform, connections)
+        else:
+            t.announcements_played += ('delay',)
+            t.time_last_announcement = time.perf_counter()
+            t.duration_last_announcement = play_special_announcement(t.train, t.platform, t.delay_minutes, time.perf_counter() - t.time_stopped)
+
     def update(self, *_):
         set_background_volume(.2 if self.control.sound >= 2 else 0)
         for train in self.trains:
@@ -442,6 +445,7 @@ class Terminus:
                     train.dist_stopped = train.state.signed_distance
                     if self.entering == train:
                         self.clear_entering()
+                        self.play_connections(train)
                 elif not train.has_reversed and train.state.signed_distance != train.dist_stopped:  # Continued a bit further and stopped again
                     print(f"{train} came to a stop in terminus again, distance from previous: {abs(train.state.signed_distance - train.dist_stopped)}")
                     train.time_stopped = time.perf_counter()
