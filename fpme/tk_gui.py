@@ -177,7 +177,7 @@ class TKGUI:
         self.window.bind("<Control-Key-5>", lambda e: self.terminus_select(5))
         self.window.bind("<BackSpace>", lambda e: self.clear_platform())
         self.window.bind("<d>", lambda e: print(self.control.generator.format_state()))
-        self.window.bind("<KeyPress-Return>", self.external_train_enter())
+        self.window.bind("<KeyPress-Return>", lambda e: self.external_train_enter())
         self.window.bind("<KeyRelease-Return>", lambda e: self.enter_released())
         self.window.protocol("WM_DELETE_WINDOW", lambda: self.terminate())
 
@@ -216,7 +216,7 @@ class TKGUI:
     def external_train_enter(self, train=MW_TGV):
         if self.enter_pressed:
             return
-        self.enter_pressed = False
+        self.enter_pressed = True
         if not self.terminus:
             return
         if self.terminus.is_in_terminus(train):
