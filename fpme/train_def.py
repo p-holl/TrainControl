@@ -131,6 +131,7 @@ GUETER =            TrainInfo(None, "🚂/🛲", 1, 0, 0, can_reverse=False, max
 # --- Rail cars ---
 ICE_ =              TrainInfo("ICE", "🚅", .33, max_delay=95, delay_rate=.35, max_speed_in_station=(45, 55, 60), switch_avoidance=.9, max_speed_by_track={'regional': 140})
 S_ =                TrainInfo("S", "Ⓢ", .75, max_delay=30, delay_rate=.2, max_speed_in_station=(50, 55, 60), switch_avoidance=.5)
+BR650_ =             TrainInfo("MEX", "🚉", .6)
 BUS_ =              TrainInfo("Bus", "🚌", .8, max_delay=10, delay_rate=0.1, max_speed_in_station=(70, 70, 70))
 # --- Wagons ---
 INTERREGIO_BLAU =   TrainInfo("IC", "🚉", .3, switch_avoidance=1., max_speed_by_track={'regional': 140})
@@ -145,8 +146,10 @@ ICE = Train(ICE_, "BR 402 (ICE 2)", "Märklin 29786", 3, speeds(310, 1.4), 25., 
             functions=(LIGHT, SLOW_MODE, INSTANT_ACCELERATION))
 E_BW = Train(INTERREGIO_BLAU, "BR 101", "Märklin 37394", 1, (0, 13, 25, 46, 67, 86, 108, 125, 140, 156, 173, 191, 201, 215, 226), 30., img_path="E-Lok BW.png", stop_by_mm1_reverse=False,
              functions=(LIGHT, TrainFunction("Nebelscheinwerfer", 2, False, (TAG_SPECIAL_LIGHT,), 0., None), TrainFunction("Fahrtlicht hinten", 3, False, (TAG_SPECIAL_LIGHT,)), INSTANT_ACCELERATION))
-E_RB = Train(RB_ROT, "BR 146.1", "Märklin 29475", 24, speeds(210), 30., supports_mm2=False, stop_by_mm1_reverse=False, img_path="E-Lok DB.png")
+E_RB = Train(RB_ROT, "BR 146.1", "Märklin 29475", 24, speeds(210, exponent=1.1), 30., supports_mm2=False, stop_by_mm1_reverse=False, img_path="E-Lok DB.png")
 S = Train(S_, "BR 648.2 (LINT 41)", "Märklin 37730", 48, (0, 2, 5, 10, 15, 22, 30, 41, 51, 64, 77, 91, 106, 120, 136), 35., img_path="S-Bahn.png",
+          functions=(LIGHT, TrainFunction("Innenbeleuchtung", 1, False, (TAG_DEFAULT_LIGHT,)), SOUND, TrainFunction("Horn", 3, False, (TAG_SPECIAL_SOUND,)), INSTANT_ACCELERATION))
+BR650 = Train(BR650_, "BR 650", "Märklin", 65, (0, 2, 5, 10, 15, 22, 30, 41, 51, 64, 77, 91, 106, 120, 136), 35., img_path="S-Bahn.png",
           functions=(LIGHT, TrainFunction("Innenbeleuchtung", 1, False, (TAG_DEFAULT_LIGHT,)), SOUND, TrainFunction("Horn", 3, False, (TAG_SPECIAL_SOUND,)), INSTANT_ACCELERATION))
 BEIGE = Train(SILBERLING, "BR 218", "Märklin 3074", 73, (0, None, 13, 20, 34, 60, 85, 100, 120, 141, 157, 172, 188, 204, 220), 25., img_path="Thumb_BR218_Beige.png",
               functions=(LIGHT, SLOW_MODE, INSTANT_ACCELERATION))
@@ -172,7 +175,7 @@ E40 = Train(GUETER, "BR E40", "Märklin 39140", 23, speeds(280, 1.0), 30., img_p
 MW_TGV = Train(TGV_, 'TGV', "Märklin my world 29304", -1, (None,)*15, 0., functions=(), img_path="MW_TGV.png", trips_contacts=False)
 MW_LOK = Train(GUETER, 'Dampf/Diesel/E', 'Märklin my world 36270', -1, (None,)*15, 0., functions=(), img_path="MW_Lok.png", trips_contacts=False)
 
-TRAINS = [ICE, S, BUS, E_RB, E_BW, ROT, BEIGE,   E40, DIESEL, DAMPF]
+TRAINS = [ICE, S, BR650, BUS, E_RB, E_BW, ROT, BEIGE,   E40, DIESEL, DAMPF]
 EXT_TRAINS = [MW_TGV, MW_LOK]
 
 TRAINS_BY_NAME = {train.id: train for train in TRAINS + EXT_TRAINS}
