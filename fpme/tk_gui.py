@@ -28,6 +28,7 @@ class TKGUI:
         self.speed_bars: Dict[Train, ttk.Progressbar] = {}
         self.direction_labels: Dict[Train, tk.Label] = {}
         self.shown_trains: List[Train] = []
+        self.enter_pressed = False
 
         self.window.title("Modellbahn Steuerung")
         self.window.geometry('800x750')
@@ -176,7 +177,8 @@ class TKGUI:
         self.window.bind("<Control-Key-5>", lambda e: self.terminus_select(5))
         self.window.bind("<BackSpace>", lambda e: self.clear_platform())
         self.window.bind("<d>", lambda e: print(self.control.generator.format_state()))
-        self.window.bind("<Return>", lambda e: self.external_train_enter())
+        self.window.bind("<KeyPress-Return>", self.external_train_enter())
+        self.window.bind("<KeyRelease-Return>", lambda e: self.enter_released())
         self.window.protocol("WM_DELETE_WINDOW", lambda: self.terminate())
 
     def launch(self):
@@ -212,12 +214,18 @@ class TKGUI:
         self.selected_platform = None
 
     def external_train_enter(self, train=MW_TGV):
+        if self.enter_pressed:
+            return
+        self.enter_pressed = False
         if not self.terminus:
             return
         if self.terminus.is_in_terminus(train):
             self.terminus.remove_train(train)
         else:
             self.terminus.request_entry(train)
+
+    def enter_released(self):
+        self.enter_pressed = False
 
     def update_ui(self):
         now = time.perf_counter()
