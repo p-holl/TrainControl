@@ -353,6 +353,8 @@ class Terminus:
         set_switches_for(self.relay, platform)
         self.relay.open_channel(ENTRY_SIGNAL)
         self.relay.close_channel(ENTRY_POWER)
+        if self.control.sound >= 1:
+            play_entry_announcement(train, platform, entering.delay_minutes)
 
         def process_entry(entering: ParkedTrain, duration=KEEP_ENTRY_OPEN_SEC, interval=0.01, max_train_length=130):
             for _ in range(int(duration / interval)):
@@ -378,8 +380,6 @@ class Terminus:
             driven = entering.dist_trip - entering.dist_request
             if (entering.state.speed > 0) != entering.entered_forward:
                 warnings.warn(f"Train switched direction while entering? driven={driven}, speed={entering.state.speed}")
-            if self.control.sound >= 1:
-                play_entry_announcement(train, platform, entering.delay_minutes)
             def red_when_entered():
                 while True:
                     time.sleep(0.1)
