@@ -131,7 +131,7 @@ GUETER =            TrainInfo(None, "🚂/🛲", 1, 0, 0, can_reverse=False, max
 # --- Rail cars ---
 ICE_ =              TrainInfo("ICE", "🚅", .33, max_delay=95, delay_rate=.35, max_speed_in_station=(45, 55, 60), switch_avoidance=.9, max_speed_by_track={'regional': 140})
 S_ =                TrainInfo("S", "Ⓢ", .75, max_delay=30, delay_rate=.2, max_speed_in_station=(50, 55, 60), switch_avoidance=.5)
-SHUTTLE_ =             TrainInfo("MEX", "🚉", .6)
+SHUTTLE_ =             TrainInfo("Shuttle", "🚉", .6)
 BUS_ =              TrainInfo("Bus", "🚌", .8, max_delay=10, delay_rate=0.1, max_speed_in_station=(70, 70, 70))
 # --- Wagons ---
 INTERREGIO_BLAU =   TrainInfo("IC", "🚉", .3, switch_avoidance=1., max_speed_by_track={'regional': 140})
