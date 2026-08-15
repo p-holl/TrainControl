@@ -354,7 +354,7 @@ class TrainControl:
         with state.modify_lock:
             state.last_effect_uses[func] = time.perf_counter()
             if func.is_toggle:
-                state.active_functions[func] = not state.active_functions[func]
+                state.active_functions[func] = not state.active_functions.get(func, False)
             else:  # single activation / non-toggle
                 state.active_functions[func] = True
                 if func.default_duration:
