@@ -35,7 +35,7 @@ ENTRY_SIGNAL = 3
 ENTRY_POWER = 4  # no power when open
 
 CONTACT_OFFSET = -20  # distance (cm) how far the contact trigger extends beyond the board
-KEEP_ENTRY_OPEN_SEC = 8
+KEEP_ENTRY_OPEN_SEC = 12
 
 
 @dataclass
@@ -445,7 +445,10 @@ class Terminus:
                     train.dist_stopped = train.state.signed_distance
                     if self.entering == train:
                         self.clear_entering()
+                    def delayed_play(train=train):
+                        time.sleep(2.)
                         self.play_connections(train)
+                    Thread(target=delayed_play).start()
                 elif not train.has_reversed and train.state.signed_distance != train.dist_stopped:  # Continued a bit further and stopped again
                     print(f"{train} came to a stop in terminus again, distance from previous: {abs(train.state.signed_distance - train.dist_stopped)}")
                     train.time_stopped = time.perf_counter()
