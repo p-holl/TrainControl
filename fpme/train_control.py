@@ -352,13 +352,17 @@ class TrainControl:
             if time.perf_counter() < state.last_effect_uses[func] + func.cooldown:
                 return False
         with state.modify_lock:
-            state.active_functions[func] = True
             state.last_effect_uses[func] = time.perf_counter()
-            if func.default_duration:
-                def deactivate():
-                    time.sleep(func.default_duration)
-                    state.active_functions[func] = False
-                Thread(target=deactivate).start()
+            if func.is_toggle:
+                state.active_functions[func] = not state.active_functions[func]
+            else:  # single activation / non-toggle
+                state.active_functions[func] = True
+                if func.default_duration:
+                    def deactivate():
+                        time.sleep(func.default_duration)
+                        state.active_functions[func] = False
+                    Thread(target=deactivate).start()
+        return True
 
     def activate(self, train: Train, cause: str):
         """ user: If no user specified, will auto-deactivate again soon. """
