@@ -308,10 +308,11 @@ class Terminus:
             if not is_in_station and self.entering:
                 if train == self.entering.train:  # clicked again, no effect
                     return
-                elif self.entering.has_tripped_contact and not self.entering.has_cleared_contact:
-                    print(f"Terminus: {train} cannot enter until {self.entering} has cleared contact")
-                    self.control.force_stop(train, "wait for previous train")  # Wait until previous train has passed
-                    return
+                elif self.entering.has_tripped_contact:
+                    if not self.entering.has_cleared_contact:
+                        print(f"Terminus: {train} cannot enter until {self.entering} has cleared contact")
+                        self.control.force_stop(train, "wait for previous train")  # Wait until previous train has passed
+                        return
                 else:  # Who is first? Previous one might have been an accident. Stop both, block entry
                     print(f"Terminus: Conflict between {train} and {self.entering}")
                     self.control.emergency_stop(train, f"Contested terminus entry: {train} vs {self.entering.train}")
@@ -370,7 +371,7 @@ class Terminus:
             if (entering.state.speed > 0) != entering.entered_forward:
                 warnings.warn(f"Train switched direction while entering? driven={driven}, speed={entering.state.speed}")
             # --- async switches and signal ---
-            set_switches_for(self.relay, platform, entering.train.info.max_speed_in_station[LIMIT_INDEX[t.platform]], CONTACT_OFFSET)
+            set_switches_for(self.relay, platform, entering.train.info.max_speed_in_station[LIMIT_INDEX[entering.platform]], CONTACT_OFFSET)
             def red_when_entered():
                 while True:
                     time.sleep(0.1)
@@ -544,9 +545,10 @@ def select_track(train: Train, state: Dict[int, str]):
     return best
 
 
-def set_switches_for(relay, platform: int, train_speed, train_position, speed_margin=0.5):
-    train_speed_cm_s = train_speed / 87 / 3.6 * 10 + speed_margin
-    time_to_1 = (18 - train_position) / train_speed_cm_s
+def set_switches_for(relay, platform: int, train_speed, train_position, speed_margin=0.5, detection_time=1.0):
+    train_speed_cm_s = train_speed / 87 / 3.6 * 100 + speed_margin
+    time_to_1 = (16 - train_position) / train_speed_cm_s - detection_time
+    print(f"Planning Switches -> {platform}. At {train_speed_cm_s:.2f} cm/s, estimate {time_to_1} s to reach first switch")
     target = SWITCH_STATE[platform]
     def async_set_switches():
         if 7 in target:
@@ -855,6 +857,7 @@ def delayed_now(delay_minutes: int):
 READY_SOUNDS = {
     ICE: ("whistle1.wav", 1.5, 1.),
     S: ("door-beep-S-Bahn.wav", 5., 1.),
+    SHUTTLE: ("door-beep-RE.wav", 5., 1.),
     E_BW: ("whistle2.wav", 1.5, 1.),
     E_RB: ("door-beep-RE.wav", 5., 1.),
     DAMPF: ("steam-horn.wav", 3.5, 1.),  # oder Horn vom Zug
@@ -876,6 +879,7 @@ DEPARTURE_SOUNDS = {  # (filename, volume)
     # ROT: None,
     DIESEL: ("diesel-departure.mp3", 1.),
     BUS: ("tram.mp3", 1.),
+    # SHUTTLE: ("e-train.mp3", .3),
 }
 
 if __name__ == '__main__':
