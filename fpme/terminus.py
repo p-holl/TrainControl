@@ -22,6 +22,7 @@ SWITCH_STATE = {  # True -> open_channel, False -> close_channel
     4: {6: True, 7: False, 8: False},
     5: {6: True, 7: False, 8: True},
 }
+SECOND_SWITCH_DIST = {1: 36, 2: 36, 3: None, 4: 18, 5: 18}
 
 PREVENT_EXIT = {  # when entering platform x, train on platforms y must wait
     1: [2, 3],
@@ -307,8 +308,8 @@ class Terminus:
             if not is_in_station and self.entering:
                 if train == self.entering.train:  # clicked again, no effect
                     return
-                elif self.entering.has_tripped_contact:
-                    print(f"Terminus: {train} cannot enter until {self.entering} has cleared switches")
+                elif self.entering.has_tripped_contact and not self.entering.has_cleared_contact:
+                    print(f"Terminus: {train} cannot enter until {self.entering} has cleared contact")
                     self.control.force_stop(train, "wait for previous train")  # Wait until previous train has passed
                     return
                 else:  # Who is first? Previous one might have been an accident. Stop both, block entry
@@ -339,7 +340,6 @@ class Terminus:
             self.trains.append(entering)
         self.control.set_speed_limit(train, 'terminus', train.info.max_speed_in_station[LIMIT_INDEX[platform]])
         self.prevent_exit(platform)
-        set_switches_for(self.relay, platform)
         self.relay.open_channel(ENTRY_SIGNAL)
         self.relay.close_channel(ENTRY_POWER)
         if self.control.sound >= 1:
@@ -369,6 +369,8 @@ class Terminus:
             driven = entering.dist_trip - entering.dist_request
             if (entering.state.speed > 0) != entering.entered_forward:
                 warnings.warn(f"Train switched direction while entering? driven={driven}, speed={entering.state.speed}")
+            # --- async switches and signal ---
+            set_switches_for(self.relay, platform, entering.train.info.max_speed_in_station[LIMIT_INDEX[t.platform]], CONTACT_OFFSET)
             def red_when_entered():
                 while True:
                     time.sleep(0.1)
@@ -542,17 +544,24 @@ def select_track(train: Train, state: Dict[int, str]):
     return best
 
 
-def set_switches_for(relay, platform: int):
-    time.sleep(.01)
-    for channel, req_open in SWITCH_STATE[platform].items():
-        if channel == 8:  # secondary switches, delay by 1s
-            def delayed_switch_secondary(channel=channel, req_open=req_open):
-                time.sleep(1.)
-                relay.set_channel_open(channel, req_open)
-            Thread(target=delayed_switch_secondary).start()
-        else:
-            relay.set_channel_open(channel, req_open)
+def set_switches_for(relay, platform: int, train_speed, train_position, speed_margin=0.5):
+    train_speed_cm_s = train_speed / 87 / 3.6 * 10 + speed_margin
+    time_to_1 = (18 - train_position) / train_speed_cm_s
+    target = SWITCH_STATE[platform]
+    def async_set_switches():
+        if 7 in target:
+            time.sleep(time_to_1 - .1)
+            relay.set_channel_open(6, target[6])
             time.sleep(.1)
+            relay.set_channel_open(7, target[7])
+        else:
+            time.sleep(time_to_1)
+            relay.set_channel_open(6, target[6])
+        if 8 in target:
+            dt = SECOND_SWITCH_DIST[platform] / train_speed_cm_s
+            time.sleep(dt)
+            relay.set_channel_open(8, target[8])
+    Thread(target=async_set_switches).start()
 
 
 TARGETS = {
