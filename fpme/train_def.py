@@ -151,7 +151,7 @@ E_BW = Train(INTERREGIO_BLAU, "BR 101", "Märklin 37394", 1, (0, 13, 25, 46, 67,
 E_RB = Train(RB_ROT, "BR 146.1", "Märklin 29475", 24, speeds(210, exponent=1.1), 30., supports_mm2=False, stop_by_mm1_reverse=False, img_path="E-Lok DB.png")
 S = Train(S_, "BR 648.2 (LINT 41)", "Märklin 37730", 48, speeds(137, 1.742), 35., img_path="S-Bahn.png",
           functions=(LIGHT, TrainFunction("Innenbeleuchtung", 1, False, (TAG_SPECIAL_LIGHT,), 1., None), SOUND, TrainFunction("Horn", 3, False, (TAG_SPECIAL_SOUND,)), INSTANT_ACCELERATION))
-SHUTTLE = Train(SHUTTLE_, "Shuttle", "Märklin 36967", 65, speeds(140, 1.5), 35., img_path="S-Bahn.png",
+SHUTTLE = Train(SHUTTLE_, "Shuttle", "Märklin 36967", 65, speeds(140, 1.5), 35., img_path="Shuttle.png",
                 functions=(LIGHT, TrainFunction("Innenbeleuchtung", 1, False, (TAG_SPECIAL_LIGHT,), 1., None), SOUND, TrainFunction("Horn", 3, False, (TAG_SPECIAL_SOUND,)), INSTANT_ACCELERATION))
 BEIGE = Train(SILBERLING, "BR 218", "Märklin 3074", 73, (0, None, 13, 20, 34, 60, 85, 100, 120, 141, 157, 172, 188, 204, 220), 25., img_path="Thumb_BR218_Beige.png",
               functions=(LIGHT, SLOW_MODE, INSTANT_ACCELERATION))
