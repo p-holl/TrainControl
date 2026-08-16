@@ -26,6 +26,22 @@ class TestTrainTrackerIntegrateTo(unittest.TestCase):
         self.assertAlmostEqual(sgn_d, 20.0)  # avg speed 10 * 2s
         self.assertAlmostEqual(abs_d, 20.0)
 
+    def test_reversal_time_after_multiple_updates(self):
+        tracker = TrainTracker(model=self.model)
+        tracker.set(speed_index=0, in_reverse=False, functions={0: True}, current_time=0.)
+        tracker.set(speed_index=5, in_reverse=True, functions={0: True}, current_time=1.)
+        # Verify direction changed event occurred
+        self.assertIsNotNone(tracker.direction_changed_at)
+        self.assertEqual(tracker.direction_changed_at, 1.0)
+        tracker.set(speed_index=6, in_reverse=True, functions={0: True}, current_time=1.0001)
+        # Direction should not be marked as changed again (no direction change between 1.0 and 1.0001)
+        self.assertEqual(tracker.direction_changed_at, 1.0)  # Still the original time
+        # target speed = 40 cm/s, accel = 10 cm/s^2 -> reaches target at t=4
+        speed, sgn_d, abs_d = tracker.integrate_to(2.)
+        self.assertAlmostEqual(speed, 0)
+        self.assertAlmostEqual(sgn_d, 0)  # avg speed 10 * 2s
+        self.assertAlmostEqual(abs_d, 0)
+
     def test_acceleration_then_constant_speed(self):
         tracker = TrainTracker(model=self.model)
         tracker.set(speed_index=2, in_reverse=False, functions={}, current_time=0.)

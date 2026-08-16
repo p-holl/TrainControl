@@ -25,26 +25,47 @@ class TrainTracker:
     # --- Last update ---
     last_update: float = -1  # perf_counter time
     speed_index: int = 0  # current signal [0, 15]
-    direction_changed: bool = False
+    direction_changed_at: Optional[float] = None  # time when direction was last changed
     in_reverse: bool = False
-    sound_switched_on: bool = False  # this causes a wait of model.startup_time if the train was stopped.
+    sound_switched_on_at: Optional[float] = None  # time when sound was last switched on
     functions: Dict[int, bool] = field(default_factory=dict)
+    # --- Pending event flags for current update ---
+    _pending_direction_changed: bool = field(default=False, init=False, repr=False)
+    _pending_sound_switched_on: bool = field(default=False, init=False, repr=False)
     # --- Model state ---
     speed: float = 0.  # Modeled signed speed (cm/s) (negative when reversed) at t=last_update
     sgn_distance: float = 0.  # distance traveled (cm) at t=last_update
     abs_distance: float = 0. # distance traveled (cm) at t=last_update
 
     def set(self, speed_index: int, in_reverse: bool, functions: Dict[int, bool], current_time: float):
+        # --- Determine event flags BEFORE integrating (using old state) ---
+        direction_changed = self.in_reverse != in_reverse
+        sound_switched_on = functions.get(self.model.sound_function, False) and not self.is_sound_on
+        
+        # --- Store which events happen in THIS update (only set if event occurred) ---
+        if direction_changed:
+            self._pending_direction_changed = True
+        else:
+            self._pending_direction_changed = False
+        
+        if sound_switched_on:
+            self._pending_sound_switched_on = True
+        else:
+            self._pending_sound_switched_on = False
+        
         # --- Integrate to now ---
         if self.last_update == -1:  # initialization event
             self.speed, self.sgn_distance, self.abs_distance = 0., 0., 0.
         else:
             self.speed, self.sgn_distance, self.abs_distance = self.integrate_to(current_time)
-        # --- Update state ---
+        
+        # --- Update state and timestamps ---
         self.speed_index = speed_index
-        self.direction_changed = self.in_reverse != in_reverse
+        if direction_changed:
+            self.direction_changed_at = current_time
         self.in_reverse = in_reverse
-        self.sound_switched_on = functions.get(self.model.sound_function, False) and not self.is_sound_on
+        if sound_switched_on:
+            self.sound_switched_on_at = current_time
         self.functions = functions
         self.last_update = current_time
 
@@ -60,6 +81,16 @@ class TrainTracker:
     @property
     def current_reverse_time(self):
         return self.model.reverse_time_with_sound if self.is_sound_on else 0
+
+    @property
+    def direction_changed(self) -> bool:
+        """Returns True if direction changed in the most recent set call."""
+        return self._pending_direction_changed
+
+    @property
+    def sound_switched_on(self) -> bool:
+        """Returns True if sound switched on in the most recent set call."""
+        return self._pending_sound_switched_on
 
     def integrate_to(self, t: float) -> Tuple[float, float, float]:
         """
@@ -85,7 +116,12 @@ class TrainTracker:
         target = self.target_speed
 
         # --- Handle direction change: decelerate to 0, then wait startup_time if sound is on ---
-        if self.direction_changed and not self.sound_switched_on:
+        # Check if direction changed in current set OR we're still within the recovery period from a previous direction change
+        in_direction_recovery = (self.direction_changed_at is not None and 
+                                self.direction_changed_at <= self.last_update and
+                                t >= self.direction_changed_at)
+        
+        if (self.direction_changed or in_direction_recovery) and not self.sound_switched_on:
             # Time to decelerate current speed to zero using deceleration_on_reverse
             decel = self.model.deceleration_on_reverse
             t_stop = abs(speed) / decel if decel > 0 else 0.
@@ -200,6 +236,7 @@ if __name__ == '__main__':
     tracker = TrainTracker(model=SHUTTLE.model)
     tracker.set(speed_index=0, in_reverse=False, functions={2: True}, current_time=0.)
     tracker.set(speed_index=5, in_reverse=True, functions={2: True}, current_time=1.)
+    tracker.set(speed_index=6, in_reverse=True, functions={2: True}, current_time=1.0001)
     # target speed = 40 cm/s, accel = 10 cm/s^2 -> reaches target at t=4
     print(tracker.integrate_to(2.))
     # top_speed, exponent = fit_speeds((0, 2, 5, 10, 15, 22, 30, 41, 51, 64, 77, 91, 106, 120, 136))
