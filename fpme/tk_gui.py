@@ -135,7 +135,7 @@ class TKGUI:
         terminus_pane.pack()
         self.canvas = tk.Canvas(terminus_pane, width=800, height=300)
         self.canvas.pack()
-        terminus_img = Image.open("assets/Kopfbahnhof final.jpg")
+        terminus_img = Image.open("assets/images/Kopfbahnhof final.jpg")
         terminus_img = terminus_img.resize((800, 300))
         photo_image = ImageTk.PhotoImage(terminus_img)
         self.canvas.create_image(0, 0, anchor=tk.NW, image=photo_image)
