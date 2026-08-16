@@ -289,6 +289,8 @@ class TrainControl:
 
     def emergency_stop(self, train: Train, cause: str):
         """Immediately stop `train`."""
+        if train not in self.states:
+            return
         # print(f"Emergency stop {train}, mm1={train.stop_by_mm1_reverse}")
         state = self[train]
         if state.externally_managed:
@@ -494,7 +496,7 @@ def get_speed_index(state: TrainState, abs_acceleration, limit_by_target: bool, 
         return 0
     train = state.train
     abs_speed = abs(state.speed)
-    closest_idx = int(numpy.argmin([abs(s - abs(state.target_speed)) for s in train.speeds]))  # ≥ 0
+    closest_idx = int(numpy.argmin([-1] + [abs(s - abs(state.target_speed)) for s in train.speeds]))  # ≥ 0
     if abs_acceleration > 0:  # ceil level
         greater = [i for i, s in enumerate(train.speeds) if s >= abs_speed]
         speed_idx = greater[0] if greater else len(train.speeds) - 1

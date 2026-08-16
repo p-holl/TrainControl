@@ -362,6 +362,7 @@ class Terminus:
         def process_entry(entering: ParkedTrain, duration=KEEP_ENTRY_OPEN_SEC, interval=0.01, max_train_length=130):
             for _ in range(int(duration / interval)):
                 if not entering.train.trips_contacts and abs(entering.state.signed_distance - entering.dist_request) >= 20:
+                    set_switches_for(self.relay, entering.platform, 90., -10, detection_time=5.)
                     break
                 if self.control.generator.contact_status(self.port)[0]:
                     print(f"Terminus: Contact tripped. {entering}")
@@ -375,6 +376,7 @@ class Terminus:
                     self.trains.remove(entering)
                 return
             # --- Contact tripped ---
+            print("Contact tripped")
             entering.dist_trip = entering.state.signed_distance
             entering.time_trip = time.perf_counter()
             entering.entry_speed_level = get_speed_index(entering.state, 0., True)  # update recorded speed for measurement
@@ -385,7 +387,8 @@ class Terminus:
             if (entering.state.speed > 0) != entering.entered_forward:
                 warnings.warn(f"Train switched direction while entering? driven={driven}, speed={entering.state.speed}")
             # --- async switches and signal ---
-            set_switches_for(self.relay, platform, entering.train.info.max_speed_in_station[LIMIT_INDEX[entering.platform]], CONTACT_OFFSET)
+            if entering.train.trips_contacts:
+                set_switches_for(self.relay, platform, entering.train.info.max_speed_in_station[LIMIT_INDEX[entering.platform]], CONTACT_OFFSET)
             def red_when_entered():
                 while True:
                     time.sleep(0.1)
@@ -570,16 +573,16 @@ def select_track(train: Train, state: Dict[int, str]):
 def set_switches_for(relay, platform: int, train_speed, train_position, speed_margin=0.5, detection_time=1.0):
     train_speed_cm_s = train_speed / 87 / 3.6 * 100 + speed_margin
     time_to_1 = (16 - train_position) / train_speed_cm_s - detection_time
-    print(f"Planning Switches -> {platform}. At {train_speed_cm_s:.2f} cm/s, estimate {time_to_1} s to reach first switch")
+    print(f"Planning Switches -> {platform}. At {train_speed_cm_s:.1f} cm/s, estimate {time_to_1:.1f} s to reach first switch")
     target = SWITCH_STATE[platform]
     def async_set_switches():
         if 7 in target:
-            time.sleep(time_to_1 - .1)
+            time_to_1 > 0 and time.sleep(time_to_1 - .1)
             relay.set_channel_open(6, target[6])
             time.sleep(.1)
             relay.set_channel_open(7, target[7])
         else:
-            time.sleep(time_to_1)
+            time_to_1 > 0 and time.sleep(time_to_1)
             relay.set_channel_open(6, target[6])
         if 8 in target:
             dt = SECOND_SWITCH_DIST[platform] / train_speed_cm_s
