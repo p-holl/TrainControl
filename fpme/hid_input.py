@@ -217,6 +217,7 @@ CONTROLS = {
     '\\\\?\\hid#{00001812-0000-1000-8000-00805f9b34fb}_dev_vid&0205ac_pid&022c_rev&011b_61f5dd3d7341&col04#b&2c7afc78&0&0003#{4d1e55b2-f16f-11cf-88cb-001111000030}': E40,
     '\\\\?\\hid#{00001812-0000-1000-8000-00805f9b34fb}_dev_vid&0205ac_pid&022c_rev&011b_9b64950eee81&col04#b&1cbc610d&0&0003#{4d1e55b2-f16f-11cf-88cb-001111000030}': E_BW,
 }
+CONTROLS = {controller: train for controller, train in CONTROLS.items() if train in TRAINS}
 
 if __name__ == '__main__':
     inputs = InputManager(None)
