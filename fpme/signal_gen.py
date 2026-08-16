@@ -284,14 +284,14 @@ class SubprocessGenerator:
     def get_protocol(self, address):
         return self._address_states[address][3]
 
+    def get_current_speed_cms(self, address: int):
+        return self._models[address].integrate_to(time.perf_counter())[0]
+
     def get_signed_distance(self, address: int):
-        return self._models[address].sgn_distance
+        return self._models[address].integrate_to(time.perf_counter())[1]
 
     def get_total_distance(self, address: int):
-        return self._models[address].abs_distance
-
-    def get_current_speed_cms(self, address: int):
-        return self._models[address].speed
+        return self._models[address].integrate_to(time.perf_counter())[2]
 
     def format_state(self):
         generators = "\n".join(f"- {g}" for g in self._generator_states.values())
