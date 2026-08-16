@@ -7,8 +7,7 @@ import numpy as np
 from PIL import Image
 from dataclasses import dataclass, field
 
-from .model import DrivingModel
-from .speed_util import speeds
+from .model import DrivingModel, speeds
 
 TAG_DEFAULT_LIGHT = 'default-light'
 TAG_DEFAULT_SOUND = 'default-sound'
