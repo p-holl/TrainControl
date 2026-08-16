@@ -1,4 +1,5 @@
 import json
+import logging
 import os.path
 import random
 import time
@@ -64,7 +65,8 @@ class ParkedTrain:
     duration_last_announcement = 0  # 15s for delay reasons, 15? seconds for connections
 
     def __post_init__(self):
-        print(f"Creating ParkedTrain for {self.train}")
+        logger = logging.getLogger(__name__)
+        logger.info(f"Creating ParkedTrain for {self.train}")
 
     @property
     def has_tripped_contact(self):
@@ -141,7 +143,44 @@ class ParkedTrain:
 class Terminus:
 
     def __init__(self, relay: Relay8, control: TrainControl, port: str, measure=False):
+        # Setup logging with timestamped filename
+        log_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        log_filename = f"terminus-log-{log_timestamp}.txt"
+        
+        # Configure logger
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
+        
+        # Remove existing handlers to avoid duplicates
+        for handler in self.logger.handlers[:]:
+            self.logger.removeHandler(handler)
+        
+        # Create formatters
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        
+        # File handler
+        file_handler = logging.FileHandler(log_filename, encoding='utf-8')
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(formatter)
+        self.logger.addHandler(file_handler)
+        
+        # Console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
+        
+        # Log initialization
+        self.logger.info("=" * 80)
+        self.logger.info(f"Terminus initialization started - Log file: {log_filename}")
+        self.logger.info("=" * 80)
+        
         assert control.generator.is_open(port), f"Terminus cannot be managed without entry sensor but {port} is not open."
+        self.logger.debug(f"Entry sensor port verified: {port}")
+        
         self.relay = relay
         self.control = control
         self.port = port
@@ -150,19 +189,32 @@ class Terminus:
         self.entering: Optional[ParkedTrain] = None
         self.correcting = {}  # Train -> direction
         self._request_lock = Lock()
+        
+        self.logger.debug("Initializing relay channels...")
         relay.close_channel(1)
         relay.close_channel(2)
         relay.close_channel(ENTRY_SIGNAL)
         relay.open_channel(ENTRY_POWER)
+        self.logger.debug("Relay channels initialized")
+        
+        self.logger.info("Loading saved terminus state...")
         self.load_state()
+        
         for t in self.trains:
             t.state.set_speed_limit('terminus', t.train.info.max_speed_in_station[LIMIT_INDEX[t.platform]], new_track='terminus')
+        
+        self.logger.info(f"Scheduling periodic tasks...")
         schedule_at_fixed_rate(self.save_state, 5.)
         schedule_at_fixed_rate(self.check_exited, 1.)
         schedule_at_fixed_rate(self.update, 0.1)
+        
+        self.logger.debug("Starting background ambient loop...")
         play_background_loop(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'assets', 'sound', 'ambient', 'station.mp3')))
+        
+        self.logger.info(f"Terminus initialization complete. Loaded {len(self.trains)} trains from saved state. Measurement mode: {measure}")
 
     def save_state(self, *_args):
+        self.logger.debug("Saving terminus state to terminus.json")
         data = {
             'switches': [],
             'trains': [{
@@ -178,10 +230,13 @@ class Terminus:
         }
         with open("terminus.json", 'w', encoding='utf-8') as file:
             json.dump(data, file, indent=2)
+        self.logger.debug(f"State saved: {len(self.trains)} trains")
 
     def load_state(self):
         if not os.path.isfile("terminus.json"):
+            self.logger.info("No saved terminus state found (terminus.json does not exist)")
             return
+        self.logger.info("Loading saved terminus state from terminus.json")
         with open("terminus.json", 'r', encoding='utf-8') as file:
             data = json.load(file)
         for train_data in data['trains']:
@@ -203,11 +258,12 @@ class Terminus:
                                            doors_closing=False,
                                            dist_stopped=state.signed_distance,
                                            time_stopped=-100,))
+            self.logger.info(f"Restored train from saved state: {train} on platform {platform}")
             if train in READY_SOUNDS:
                 state.custom_acceleration_handler = self.handle_acceleration
-                print(f"Terminus blocking acceleration on {train} - {id(state)}")
+                self.logger.debug(f"Terminus blocking acceleration on {train} - handler id: {id(state)}")
             else:
-                print(f"No sound for {train}")
+                self.logger.warning(f"No sound available for train: {train}")
 
     def reverse_to_exit(self):
         for train in self.trains:
@@ -221,6 +277,7 @@ class Terminus:
         return None, None
 
     def set_occupied(self, platform: int, train: Train):
+        self.logger.debug(f"Setting platform {platform} as occupied for train {train}")
         state = self.control[train] if train in self.control else TrainState(train, set(), {})
         state.track = 'terminus'
         if self.entering is not None and self.entering.train == train:
@@ -228,7 +285,7 @@ class Terminus:
         if any([t.train == train for t in self.trains]):
             t = [t for t in self.trains if t.train == train][0]
             t.platform = platform
-            print(f"Moved {train} to platform {platform}")
+            self.logger.info(f"Moved {train} to platform {platform}")
         else:
             dist = state.signed_distance
             abs_dist = state.abs_distance
@@ -236,19 +293,21 @@ class Terminus:
             train_length = 50
             t = ParkedTrain(train, state, state.track, platform, None, None, dist_trip=dist - position - CONTACT_OFFSET, dist_clear=dist - position - train_length - 0.36 - CONTACT_OFFSET, dist_reverse=abs_dist, time_stopped=-100)
             self.trains.append(t)
-            print(f"Added {t}")
-        print(self.trains)
+            self.logger.info(f"Added new train via UI: {t}")
+        self.logger.debug(f"Current trains in terminus: {self.trains}")
 
     def set_empty(self, platform: int):
+        self.logger.info(f"Clearing platform {platform}")
         trains = [t for t in self.trains if t.platform == platform]
         for t in trains:
             t.state.track = 'regional' if t.platform <= 3 else 'high-speed'
             t.state.set_speed_limit('terminus', None, cause='terminus')
+            self.logger.debug(f"Released speed limit for {t.train}, track set to {t.state.track}")
         self.trains = [t for t in self.trains if t.platform != platform]
         if self.entering is not None and self.entering.platform == platform:
             self.entering.state.track = self.entering.prev_track
             self.clear_entering()
-        print(self.trains)
+        self.logger.debug(f"Current trains in terminus: {self.trains}")
 
     def is_in_terminus(self, train: Train):
         return any(t.train == train for t in self.trains)
@@ -257,7 +316,7 @@ class Terminus:
         if self.entering and self.entering.train == train:
             self.entering.state.track = self.entering.prev_track
             self.clear_entering()
-            print(f"Removed entering train {train}")
+            self.logger.info(f"Removed entering train {train}")
         else:
             trains = [t for t in self.trains if t.train == train]
             if trains:
@@ -265,8 +324,9 @@ class Terminus:
                     t.state.track = t.prev_track
                     self.control.set_speed_limit(t.train, 'terminus', None)
                 self.trains = [t for t in self.trains if t.train != train]
-                print(f"Removed train {train}")
-            print(f"Didn't remove {train} from terminus")
+                self.logger.info(f"Removed train {train} from terminus")
+            else:
+                self.logger.warning(f"Could not remove {train} from terminus - train not found")
 
     def correct_move(self, train: Train, direction: float):
         self.correcting[train] = direction
@@ -275,76 +335,81 @@ class Terminus:
         for t in self.trains:
             if t.train == train:
                 if t.dist_reverse is not None:
+                    self.logger.debug(f"Ignoring subsequent reverse event for {train}")
                     continue  # ignore subsequent reverses
                 t.dist_reverse = t.state.abs_distance
-                print(f"Reversed: {train}")
+                self.logger.info(f"Train reversed: {train} at position {t.dist_reverse:.2f}cm")
                 if self.measure and t.entry_speed_level is not None:
                     time_since_clear = time.perf_counter() - t.time_clear
                     time_since_trip = time.perf_counter() - t.time_trip
+                    self.logger.debug(f"Measurement recorded: entry_speed_level={t.entry_speed_level}, trip_time={time_since_trip:.2f}s, clear_time={time_since_clear:.2f}s")
                     write_measurement(train.id, t.platform, t.entry_speed_level, time_since_trip, time_since_clear)
                 if t.train in READY_SOUNDS:
-                    print(f"Blocking input for {t}, sound={READY_SOUNDS[t.train]}")
+                    self.logger.debug(f"Setting custom acceleration handler for {t} (sound: {READY_SOUNDS[t.train][0]})")
                     t.state.custom_acceleration_handler = self.handle_acceleration
 
     def handle_acceleration(self, train: Train, controller: str, acc_input: float, cause: str):
-        # print(f"Terminus handling acceleration for {train}")
         for t in self.trains:
             if t.train == train:
                 if acc_input > 0:
                     if t.doors_closing:
+                        self.logger.debug(f"Ignoring acceleration input for {train} - doors already closing")
                         return
                     t.doors_closing = True
+                    self.logger.debug(f"Doors closing initiated for {train} on platform {t.platform}")
                     if self.control.sound < 2:
                         t.state.custom_acceleration_handler = None
+                        self.logger.debug(f"Sound level {self.control.sound} - skipping door sound")
                         break
                     # --- Play sound ---
                     sound, duration, vol = READY_SOUNDS[t.train]
+                    self.logger.debug(f"Playing door closing sound: {sound} (duration: {duration}s)")
                     async_play('departure-effects/' + sound, int(t.platform <= 3) * vol, int(t.platform > 3) * vol)
                     # --- Wait, then release control ---
                     def release_block(t=t):
                         time.sleep(duration)
-                        print(f"Terminus: door closing complete for {t.train}")
+                        self.logger.info(f"Door closing complete for {t.train} on platform {t.platform}")
                         t.state.custom_acceleration_handler = None
-                        # self.control.set_acceleration_control(train, controller, self.blocked_inputs[t.train], 'terminus-release')
                     Thread(target=release_block).start()
                 break
         else:
-            warnings.warn(f"Terminus got input for {train} but train is not in station")
-            self.control[train].custom_acceleration_handler = None
-            self.control.set_acceleration_control(train, controller, acc_input, cause)
+            self.logger.warning(f"Terminus received acceleration input for {train} but train is not in station")
 
     def request_entry(self, train: Train):  # Button C
-        print(f"{train} requrests entry. Already registered: ", self.trains)
+        self.logger.info(f"{train} requests entry. Currently in terminus: {[t.train.name for t in self.trains]}")
         is_in_station = any(t.train == train for t in self.trains)
         with self._request_lock:
-            print(f"entering = {self.entering}")
+            self.logger.debug(f"Entry lock acquired. Currently entering train: {self.entering.train if self.entering else 'None'}")
             if not is_in_station and self.entering:
                 if train == self.entering.train:  # clicked again, no effect
+                    self.logger.debug(f"{train} entry request ignored - already being processed")
                     return
                 elif self.entering.has_tripped_contact:
                     if not self.entering.has_cleared_contact:
-                        print(f"Terminus: {train} cannot enter until {self.entering} has cleared contact")
+                        self.logger.warning(f"{train} cannot enter until {self.entering} has cleared contact")
                         self.control.force_stop(train, "wait for previous train")  # Wait until previous train has passed
                         return
                 else:  # Who is first? Previous one might have been an accident. Stop both, block entry
-                    print(f"Terminus: Conflict between {train} and {self.entering}")
+                    self.logger.error(f"Entry conflict between {train} and {self.entering.train} - emergency stop both")
                     self.control.emergency_stop(train, f"Contested terminus entry: {train} vs {self.entering.train}")
                     self.control.emergency_stop(self.entering.train, f"Contested terminus entry: {train} vs {self.entering.train}")
                     self.clear_entering()
                     return
             if is_in_station:
                 t = [t for t in self.trains if t.train == train][0]
-                print(f"{train} is already in terminus: {t.platform} @ {t.get_position()}, cleared={t.has_cleared_contact}")
+                self.logger.info(f"{train} is already in terminus at platform {t.platform}, position: {t.get_position():.1f}cm, cleared={t.has_cleared_contact}")
                 # --- Play sound if parked ---
                 if t.state.speed == 0 and self.control.sound >= 1 and len(t.announcements_played) < 2 and time.perf_counter() > t.time_last_announcement + t.duration_last_announcement and t.time_stopped is not None:
+                    self.logger.debug(f"Playing connections announcement for {train}")
                     self.play_connections(t)
                 else:
-                    print(f"Cannot play announcement. sound={self.control.sound}, speed={t.state.speed}, previous={t.announcements_played}, time={time.perf_counter() - t.time_last_announcement - t.duration_last_announcement}")
+                    self.logger.debug(f"Cannot play announcement - sound={self.control.sound}, speed={t.state.speed}, announcements_played={len(t.announcements_played)}")
                 return
             # --- prepare entry ---
             platform = select_track(train, self.get_platform_state())
-            print(f"Terminus: {train} assigned to platform {platform}")
+            self.logger.info(f"{train} assigned to platform {platform}")
             if platform is None:  # cannot enter
+                self.logger.warning(f"{train} cannot enter - no available platform, forcing stop")
                 self.control.force_stop(train, "no platform")
                 return
             state = self.control[train]
@@ -356,7 +421,9 @@ class Terminus:
         self.prevent_exit(platform)
         self.relay.open_channel(ENTRY_SIGNAL)
         self.relay.close_channel(ENTRY_POWER)
+        self.logger.debug(f"Entry signal opened, entry power closed for {train}")
         if self.control.sound >= 1:
+            self.logger.debug(f"Playing entry announcement for {train} to platform {platform}")
             play_entry_announcement(train, platform, entering.delay_minutes)
 
         def process_entry(entering: ParkedTrain, duration=KEEP_ENTRY_OPEN_SEC, interval=0.01, max_train_length=130):
@@ -365,10 +432,11 @@ class Terminus:
                     set_switches_for(self.relay, entering.platform, 90., -10, detection_time=5.)
                     break
                 if self.control.generator.contact_status(self.port)[0]:
-                    print(f"Terminus: Contact tripped. {entering}")
+                    self.logger.info(f"Entry contact tripped for {entering}")
                     break
                 time.sleep(interval)
             else:  # --- not tripped - maybe button pressed on accident or train too far ---
+                self.logger.warning(f"Entry timeout: {entering.train} did not trip entry contact within {KEEP_ENTRY_OPEN_SEC}s, aborting entry")
                 entering.state.set_speed_limit('terminus', None, new_track=entering.prev_track)
                 self.clear_entering()
                 self.control.emergency_stop(train, "train did not enter terminus")
@@ -376,29 +444,32 @@ class Terminus:
                     self.trains.remove(entering)
                 return
             # --- Contact tripped ---
-            print("Contact tripped")
+            self.logger.info("Entry contact tripped, processing train entry")
             entering.dist_trip = entering.state.signed_distance
             entering.time_trip = time.perf_counter()
             entering.entry_speed_level = get_speed_index(entering.state, 0., True)  # update recorded speed for measurement
             entering.state.track = 'terminus'
+            self.logger.debug(f"Train entered at distance {entering.dist_trip:.2f}cm, speed_level={entering.entry_speed_level}")
             if entering.dist_trip == entering.dist_request:
                 entering.dist_request -= -1e-3 if entering.state.is_in_reverse else 1e-3
             driven = entering.dist_trip - entering.dist_request
             if (entering.state.speed > 0) != entering.entered_forward:
-                warnings.warn(f"Train switched direction while entering? driven={driven}, speed={entering.state.speed}")
+                self.logger.warning(f"Direction mismatch during entry: driven={driven:.2f}cm, speed={entering.state.speed}, forward={entering.entered_forward}")
             # --- async switches and signal ---
             if entering.train.trips_contacts:
+                self.logger.debug(f"Setting switches for {entering.train} on platform {entering.platform}")
                 set_switches_for(self.relay, platform, entering.train.info.max_speed_in_station[LIMIT_INDEX[entering.platform]], CONTACT_OFFSET)
             def red_when_entered():
                 while True:
                     time.sleep(0.1)
                     if entering.get_position() > 20:
                         self.relay.close_channel(ENTRY_SIGNAL)  # red when train has driven for 20cm
+                        self.logger.debug(f"Entry signal closed (red) - train {entering.train} has progressed 20cm")
                         return
-            print("-> (async) Red when entered...")
+            self.logger.debug("Starting async signal closure thread")
             Thread(target=red_when_entered).start()
             # --- wait for clear sensor ---
-            print("Waiting for clear...")
+            self.logger.debug("Waiting for entry contact to clear")
             while True:
                 time.sleep(interval)
                 # print(f"Sensor: {self.control.generator.contact_status(self.port)[0]}")
@@ -409,27 +480,24 @@ class Terminus:
                 # --- Managed trains ---
                 elif not self.control.generator.contact_status(self.port)[0]:  # possible sensor clear
                     if entering.dist_clear is None:
-                        print("Sensor clear. Waiting for possible next wheel...")
+                        self.logger.debug("Entry sensor cleared, waiting for possible re-trigger")
                         entering.mark_cleared_contact()
-                        # self.relay.open_channel(ENTRY_POWER)
                 elif entering.dist_clear is not None and entering.get_end_position() < CONTACT_OFFSET + 30:  # another wheel entered
-                    print("Another wheel entered")
+                    self.logger.debug("Another wheel detected entering contact")
                     entering.dist_clear = None  # enable above block to re-trigger
-                    # self.relay.close_channel(ENTRY_POWER)
                     continue
                 if entering.dist_clear is None and entering.get_position() > CONTACT_OFFSET + max_train_length:
                     entering.mark_cleared_contact()
-                    print(f"Max train length reached. Setting as cleared. End = {entering.get_end_position()}")
+                    self.logger.debug(f"Max train length reached. End position: {entering.get_end_position():.2f}cm")
                 # --- cleared switches ---
                 if self.entering is not None and self.entering.dist_clear is not None and entering.get_end_position() > 60:  # approx. 57 cm
-                    print("Train cleared switches.")
+                    self.logger.info(f"Entry complete: {entering.train} cleared switches on platform {entering.platform}")
                     self.clear_entering()
                     return
 
         Thread(target=process_entry, args=(entering,)).start()
 
     def check_exited(self, *_):
-        # print(f"Check exited for {self.trains}")
         for t in tuple(self.trains):
             if t.has_cleared_contact:
                 pos = t.get_position()
@@ -437,12 +505,11 @@ class Terminus:
                 if exited:
                     self.trains.remove(t)
                     t.state.set_speed_limit('terminus', None, new_track='regional' if t.platform <= 3 else 'high-speed')
-                    print(f"{t} left the station.")
-                # else:
-                    # print(f"{t} still in station")
+                    self.logger.info(f"{t.train} exited the terminus from platform {t.platform}")
 
     def play_connections(self, t: ParkedTrain):
-        print(f"Previous announcements: {t.announcements_played}")
+        logger = logging.getLogger(__name__)
+        logger.debug(f"Checking for announcements: {t.announcements_played}")
         if 'connections' not in t.announcements_played and time.perf_counter() < t.time_stopped + 15:  # first announcement is about other trains in station (only if any)
             passenger_trains = [t_ for t_ in self.trains if t_ != t and t_.train.is_passenger_train and (t_.state.speed == 0 or (t_.state.speed > 0) == t_.entered_forward)]
             if passenger_trains:
@@ -450,17 +517,19 @@ class Terminus:
                 t.announcements_played += ('connections',)
                 t.time_last_announcement = time.perf_counter()
                 t.duration_last_announcement = play_connections(t.platform, connections)
+                logger.info(f"Playing connection announcement for {t.train} on platform {t.platform}: {len(connections)} other trains")
         else:
             t.announcements_played += ('delay',)
             t.time_last_announcement = time.perf_counter()
             t.duration_last_announcement = play_special_announcement(t.train, t.platform, t.delay_minutes, time.perf_counter() - t.time_stopped)
+            logger.info(f"Playing delay announcement for {t.train} on platform {t.platform}: {t.delay_minutes} minutes delay")
 
     def update(self, *_):
         set_background_volume(.2 if self.control.sound >= 2 else 0)
         for train in self.trains:
             if not train.state.speed and train.has_cleared_contact:  # stopped after contact
                 if train.time_stopped is None:
-                    print(f"{train} came to a stop in terminus")
+                    self.logger.info(f"{train.train} came to a stop on platform {train.platform}")
                     train.time_stopped = time.perf_counter()
                     train.dist_stopped = train.state.signed_distance
                     if self.entering == train:
@@ -470,15 +539,16 @@ class Terminus:
                         self.play_connections(train)
                     Thread(target=delayed_play).start()
                 elif not train.has_reversed and train.state.signed_distance != train.dist_stopped:  # Continued a bit further and stopped again
-                    print(f"{train} came to a stop in terminus again, distance from previous: {abs(train.state.signed_distance - train.dist_stopped)}")
+                    self.logger.debug(f"{train.train} stopped again on platform {train.platform}, moved {abs(train.state.signed_distance - train.dist_stopped):.2f}cm from previous position")
                     train.time_stopped = time.perf_counter()
                     train.dist_stopped = train.state.signed_distance
             elif train.time_departed is None and train.time_stopped is not None and train.has_reversed and train.state.speed:
-                print(f"{train} is departing")
+                self.logger.info(f"{train.train} is departing from platform {train.platform}")
                 train.time_departed = time.perf_counter()
                 if self.control.sound >= 2 and self.control.is_power_on(train.train) and train.train in DEPARTURE_SOUNDS:
                     if time.perf_counter() - train.time_stopped > 4.:
                         sound, vol = DEPARTURE_SOUNDS[train.train]
+                        self.logger.debug(f"Playing departure sound: {sound}")
                         async_play("departure/"+sound, int(train.platform <= 3) * vol, int(train.platform > 3) * vol)
             # --- Manual position correction ---
             if train.train in self.correcting and not train.state.speed:
@@ -488,17 +558,21 @@ class Terminus:
                         train.dist_trip -= direction
                     if train.dist_reverse is not None:
                         train.dist_reverse += direction
+                    self.logger.debug(f"Position corrected for {train.train}: {direction}cm")
         if self.entering is not None and self.entering.time_trip and time.perf_counter() - self.entering.time_trip > 20:
-            print(f"{self.entering} has entered contact {time.perf_counter() - self.entering.time_trip} seconds ago and is still entering. Assuming this was a mistake and clearing entry.")
+            self.logger.warning(f"{self.entering.train} has been entering for {time.perf_counter() - self.entering.time_trip:.1f}s, clearing entry")
             self.clear_entering()
 
     def prevent_exit(self, entering_platform):
         if entering_platform == 1:
             self.relay.close_channel(1)  # Platforms 2, 3
+            self.logger.debug(f"Blocked exit from platforms 2,3 to allow platform 1 entry")
         elif entering_platform == 2:
             self.relay.close_channel(1)  # Platforms 2, 3
+            self.logger.debug(f"Blocked exit from platforms 2,3 to allow platform 2 entry")
         elif entering_platform == 5:
             self.relay.close_channel(2)  # Platform 4
+            self.logger.debug(f"Blocked exit from platform 4 to allow platform 5 entry")
         trains = [t for t in self.trains if t.platform in PREVENT_EXIT.get(entering_platform, [])]
         for t in trains:
             if (t.state.speed < 0) == t.entered_forward:
@@ -508,12 +582,14 @@ class Terminus:
     def clear_entering(self):
         if self.entering is not None:
             self.entering.state.restore_speed_after_reset = False
+            self.logger.debug(f"Clearing entry process for {self.entering.train}")
         self.entering = None
         self.relay.close_channel(ENTRY_SIGNAL)
         self.relay.open_channel(ENTRY_POWER)
         self.free_exit()
 
     def free_exit(self):
+        self.logger.debug("Freeing exit paths for all platforms")
         self.relay.open_channel(1)  # Platforms 2, 3
         self.relay.open_channel(2)  # Platform 4
         for t in self.trains:
@@ -543,6 +619,7 @@ class Terminus:
 
 def select_track(train: Train, state: Dict[int, str]):
     """ Returns `None` if the train cannot enter because of collisions. """
+    logger = logging.getLogger(__name__)
     can_enter = {
         1: state[1] == 'empty' and state[2] != 'exiting' and state[3] != 'exiting',
         2: state[2] == 'empty' and state[3] != 'exiting',
@@ -552,6 +629,7 @@ def select_track(train: Train, state: Dict[int, str]):
     }
     can_enter = [p for p, c in can_enter.items() if c]
     if not can_enter:
+        logger.warning(f"{train.name} cannot enter - no available platforms. Platform states: {state}")
         return None
     regional = random.random() < train.info.regional_prob
     cost_regional = int(not regional)
@@ -566,14 +644,15 @@ def select_track(train: Train, state: Dict[int, str]):
     }
     cost = {p: base_cost[p] for p in can_enter}
     best = min(cost, key=cost.get)
-    print(f"{train.name} -> platform {best},  costs={cost} (others cannot be entered due to occupancy or currently exiting trains)")
+    logger.info(f"{train.name} assigned to platform {best} (costs={cost})")
     return best
 
 
 def set_switches_for(relay, platform: int, train_speed, train_position, speed_margin=0.5, detection_time=1.0):
+    logger = logging.getLogger(__name__)
     train_speed_cm_s = train_speed / 87 / 3.6 * 100 + speed_margin
     time_to_1 = (16 - train_position) / train_speed_cm_s - detection_time
-    print(f"Planning Switches -> {platform}. At {train_speed_cm_s:.1f} cm/s, estimate {time_to_1:.1f} s to reach first switch")
+    logger.debug(f"Planning switches for platform {platform} - train speed: {train_speed_cm_s:.1f} cm/s, ETA to first switch: {time_to_1:.1f}s")
     target = SWITCH_STATE[platform]
     def async_set_switches():
         if 7 in target:
@@ -659,6 +738,7 @@ TARGETS = {
 
 
 def play_entry_announcement(train: Train, platform: int, delay_minutes: int):
+    logger = logging.getLogger(__name__)
     if train in TARGETS:
         name, target = TARGETS[train][platform]
         hour, minute, delay = delayed_now(delay_minutes)
@@ -666,7 +746,7 @@ def play_entry_announcement(train: Train, platform: int, delay_minutes: int):
         speech = f"Gleis {PL_NUM[platform]}, Einfahrt. {name}, nach: {target}, Abfahrt {hour} Uhr {minute}{delay_text}"
     else:
         speech = f"Vorsicht auf Gleis {platform}, ein Zug fährt ein."
-    print(f"Announcement: '{speech}'")
+    logger.info(f"Playing entry announcement: '{speech}'")
     play_announcement(speech, left_vol=int(platform <= 3), right_vol=int(platform > 3))
 
 
@@ -912,6 +992,7 @@ MEASUREMENT_DATA = []
 
 
 def write_measurement(name: str, platform: int, speed_level: int, time_since_trip: float, time_since_clear: float):
+    logger = logging.getLogger(__name__)
     filename = 'terminus-measurements.json'
     if not MEASUREMENT_DATA:
         if os.path.isfile(filename):
@@ -926,7 +1007,7 @@ def write_measurement(name: str, platform: int, speed_level: int, time_since_tri
     })
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(MEASUREMENT_DATA, f, indent=2)
-    print(f"Recorded measurement for {name} (platform {platform}) with speed {speed_level}: {time_since_trip:.1f} sec / {time_since_clear:.1f} sec")
+    logger.info(f"Measurement recorded: {name} on platform {platform}, speed_level={speed_level}, entry_time={time_since_trip:.2f}s, clear_time={time_since_clear:.2f}s")
 
 
 if __name__ == '__main__':
@@ -947,5 +1028,6 @@ if __name__ == '__main__':
     # play_connections(2, [(E_RB, 1), (S, 3)])
     # time.sleep(20)
 
+    logger = logging.getLogger(__name__)
     for i in range(10):
-        print(select_track(E_BW, {i: 'empty' for i in range(1, 6)}))
+        logger.info(f"Test selection: {select_track(E_BW, {i: 'empty' for i in range(1, 6)})}")
