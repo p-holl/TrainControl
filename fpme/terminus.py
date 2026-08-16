@@ -529,6 +529,14 @@ class Terminus:
                 state[t.platform] = 'exiting'
         return state
 
+    def reset_switches(self):
+        for channel in range(6, 9):
+            self.relay.open_channel(channel)
+            time.sleep(.2)
+        for channel in range(6, 9):
+            self.relay.close_channel(channel)
+            time.sleep(.2)
+
 
 def select_track(train: Train, state: Dict[int, str]):
     """ Returns `None` if the train cannot enter because of collisions. """
