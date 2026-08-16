@@ -364,11 +364,12 @@ class Terminus:
                         break
                     # --- Play sound ---
                     sound, duration, vol = READY_SOUNDS[t.train]
-                    self.logger.debug(f"Playing door closing sound: {sound} (duration: {duration}s)")
+                    duration -= t.train.model.reverse_time_with_sound
+                    self.logger.debug(f"Playing door closing sound: {sound} (blocking for: {duration:.1f}s)")
                     async_play('departure-effects/' + sound, int(t.platform <= 3) * vol, int(t.platform > 3) * vol)
                     # --- Wait, then release control ---
                     def release_block(t=t):
-                        time.sleep(duration)
+                        duration > 0 and time.sleep(duration)
                         self.logger.info(f"Door closing complete for {t.train} on platform {t.platform}")
                         t.state.custom_acceleration_handler = None
                     Thread(target=release_block).start()
