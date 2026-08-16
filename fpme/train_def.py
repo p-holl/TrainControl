@@ -5,9 +5,9 @@ from typing import Tuple, Sequence, Optional, List, Dict
 
 import numpy as np
 from PIL import Image
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
-from .model import DrivingModel, speeds
+from .model import DrivingModel, speeds, kmh_to_cms, unmask
 
 TAG_DEFAULT_LIGHT = 'default-light'
 TAG_DEFAULT_SOUND = 'default-sound'
@@ -66,7 +66,7 @@ class Train:
     address: int
     masked_speeds: Sequence[Optional[float]]
     acceleration: float
-    model: DrivingModel = DrivingModel()
+    incomplete_model: DrivingModel = DrivingModel()
     custom_deceleration: Optional[float] = None
     has_built_in_acceleration: bool = True
     supports_mm2: bool = True
@@ -92,6 +92,10 @@ class Train:
     @cached_property
     def speed_codes(self) -> Tuple[int, ...]:
         return tuple(i for i, s in enumerate(self.masked_speeds) if s is not None)
+
+    @cached_property
+    def model(self) -> DrivingModel:
+        return replace(self.incomplete_model, key_speeds=kmh_to_cms(unmask(self.masked_speeds)))
 
     @cached_property
     def image(self) -> Image:

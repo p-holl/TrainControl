@@ -4,6 +4,10 @@ from typing import Dict, Tuple, Optional
 import numpy as np
 
 
+def speeds(s15, exponent=1.3):
+    return (*np.linspace(0, s15 ** (1/exponent), 15) ** exponent,)
+
+
 @dataclass(frozen=True)
 class DrivingModel:
     key_speeds: Tuple[float, float, float, float, float, float, float, float, float, float, float, float, float, float, float] = speeds(60, 1.3)  # cm/s
@@ -153,6 +157,8 @@ class TrainTracker:
 
 
 def kmh_to_cms(kmh):
+    if isinstance(kmh, (tuple, list)):
+        return tuple(kmh_to_cms(entry) for entry in kmh)
     return kmh / 3.6 * 100 / 87
 
 
@@ -160,8 +166,12 @@ def cms_to_kmh(cms):
     return cms / 100 * 3.6 * 87
 
 
-def speeds(s15, exponent=1.3):
-    return (*np.linspace(0, s15 ** (1/exponent), 15) ** exponent,)
+def unmask(speeds):
+    speeds = list(speeds)
+    for i in range(1, len(speeds)):
+        if speeds[i] is None:
+            speeds[i] = speeds[i - 1]
+    return speeds
 
 
 def fit_speeds(measured: tuple):
@@ -186,5 +196,6 @@ def fit_speeds(measured: tuple):
 
 
 if __name__ == '__main__':
-    top_speed, exponent = fit_speeds((0, 2, 5, 10, 15, 22, 30, 41, 51, 64, 77, 91, 106, 120, 136))
-    print(f"Top speed: {top_speed}, exponent: {exponent}")
+    print(kmh_to_cms())
+    # top_speed, exponent = fit_speeds((0, 2, 5, 10, 15, 22, 30, 41, 51, 64, 77, 91, 106, 120, 136))
+    # print(f"Top speed: {top_speed}, exponent: {exponent}")

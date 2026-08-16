@@ -11,6 +11,7 @@ import serial
 from serial import SerialException
 import serial.tools.list_ports
 
+from fpme.model import DrivingModel, TrainTracker
 
 T = TERNARY_BITS = [(63, 63), (0, 0), (0, 63)]  # 416 ms per bit
 # 1 trit = 2 bits
@@ -180,6 +181,7 @@ class SubprocessGenerator:
         self._manager = None
         self._generator_states: Dict[str, GeneratorState] = {}  # serial port -> state
         self._address_states: Dict[int, Tuple[int, bool, dict, Optional[RS232Protocol], str]] = {}  # address -> state
+        self._models: Dict[int, TrainTracker] = {}
         self._manager = Manager()
         self._all_active = [Value('b', False) for _ in range(max_generators)]
         self._all_short_circuited = [Value('b', False) for _ in range(max_generators)]
@@ -207,6 +209,13 @@ class SubprocessGenerator:
     def get_open_ports(self) -> Tuple[str]:
         return tuple(self._generator_states.keys())
 
+    def set_model(self, address: int, model: DrivingModel):
+        assert address not in self._models, f"Address {address} already has a model assigned."
+        self._models[address] = TrainTracker(model)
+        if address in self._address_states:
+            speed, reverse, functions, protocol, name = self._address_states[address]
+            self._models[address].set(speed, reverse, functions, time.perf_counter())
+
     def set(self, address: int, speed: int or None, reverse: bool, functions: Dict[int, bool], protocol: RS232Protocol = None, name: str = None):
         if address in self._address_states and self._address_states[address][:4] == (speed, reverse, functions, protocol):
             return  # already set
@@ -218,6 +227,9 @@ class SubprocessGenerator:
         assert all(isinstance(v, bool) for v in functions.values()), "functions must be a Dict[int, bool]"
         self._address_states[address] = (speed, reverse, functions, protocol, name)
         self._subprocess_run.put(('set', address, speed, reverse, functions, protocol))
+        model = self._models.get(address, None)
+        if model:
+            model.set(speed or 0, reverse, functions, time.perf_counter())
 
     def start(self, serial_port: str):
         self._subprocess_run.put(('start', serial_port))
@@ -271,6 +283,15 @@ class SubprocessGenerator:
 
     def get_protocol(self, address):
         return self._address_states[address][3]
+
+    def get_signed_distance(self, address: int):
+        return self._models[address].sgn_distance
+
+    def get_total_distance(self, address: int):
+        return self._models[address].abs_distance
+
+    def get_current_speed_cms(self, address: int):
+        return self._models[address].speed
 
     def format_state(self):
         generators = "\n".join(f"- {g}" for g in self._generator_states.values())
