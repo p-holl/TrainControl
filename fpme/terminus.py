@@ -12,7 +12,7 @@ from typing import Optional, List, Tuple, Dict
 from fpme.audio import play_announcement, play_background_loop, async_play, set_background_volume
 from fpme.helper import schedule_at_fixed_rate
 from fpme.relay8 import Relay8
-from fpme.train_control import TrainControl, TrainState
+from fpme.train_control import TrainControl, TrainState, get_speed_index
 from fpme.train_def import Train, ICE, S, E_RB, E_BW, E40, DAMPF, BEIGE, ROT, DIESEL, BUS, train_by_name, MW_TGV, SHUTTLE
 
 SWITCH_STATE = {  # True -> open_channel, False -> close_channel
@@ -45,10 +45,12 @@ class ParkedTrain:
     state: TrainState
     prev_track: Optional[str]
     platform: int  # in {1, 2, 3, 4, 5}
+    entry_speed_level: Optional[int]
     dist_request: float = None  # Signed distance when enter request was sent. None for trains set through the UI.
     dist_trip: float = None  # Signed distance when entering the switches
     time_trip: float = None
     dist_clear: float = None  # Signed distance when leaving the sensor, now fully on switches
+    time_clear: float = None
     dist_reverse: float = None  # Abs distance when the 'reverse' button is clicked for the fist time
     # --- For departure sound ---
     time_stopped: float = None  # perf_counter() when train came to rest in station. Can be updated.
@@ -70,6 +72,10 @@ class ParkedTrain:
     @property
     def has_cleared_contact(self):
         return self.dist_clear is not None
+
+    def mark_cleared_contact(self):
+        self.dist_clear = self.state.signed_distance
+        self.time_clear = time.perf_counter()
 
     @property
     def train_length(self):
@@ -133,11 +139,12 @@ class ParkedTrain:
 
 class Terminus:
 
-    def __init__(self, relay: Relay8, control: TrainControl, port: str):
+    def __init__(self, relay: Relay8, control: TrainControl, port: str, measure=False):
         assert control.generator.is_open(port), f"Terminus cannot be managed without entry sensor but {port} is not open."
         self.relay = relay
         self.control = control
         self.port = port
+        self.measure = measure
         self.trains: List[ParkedTrain] = []  # trains in Terminal
         self.entering: Optional[ParkedTrain] = None
         self.correcting = {}  # Train -> direction
@@ -186,7 +193,7 @@ class Terminus:
             state = self.control[train] if train in self.control else TrainState(train, set(), {})
             sgn_delta = state.signed_distance - train_data['sgn_dist']
             abs_delta = state.abs_distance - train_data['abs_dist']  # typically < 0
-            self.trains.append(ParkedTrain(train, state, 'terminus', platform,
+            self.trains.append(ParkedTrain(train, state, 'terminus', platform, None,
                                            dist_request=dist_request + sgn_delta if dist_request is not None else None,
                                            dist_trip=dist_trip + sgn_delta if dist_trip is not None else None,
                                            time_trip=-100,
@@ -226,7 +233,7 @@ class Terminus:
             abs_dist = state.abs_distance
             position = 300
             train_length = 50
-            t = ParkedTrain(train, state, state.track, platform, None, dist_trip=dist - position - CONTACT_OFFSET, dist_clear=dist - position - train_length - 0.36 - CONTACT_OFFSET, dist_reverse=abs_dist, time_stopped=-100)
+            t = ParkedTrain(train, state, state.track, platform, None, None, dist_trip=dist - position - CONTACT_OFFSET, dist_clear=dist - position - train_length - 0.36 - CONTACT_OFFSET, dist_reverse=abs_dist, time_stopped=-100)
             self.trains.append(t)
             print(f"Added {t}")
         print(self.trains)
@@ -266,12 +273,17 @@ class Terminus:
     def on_reversed(self, train: Train):
         for t in self.trains:
             if t.train == train:
-                if t.dist_reverse is None:  # ignore subsequent reverses
-                    t.dist_reverse = t.state.abs_distance
-                    print(f"Reversed: {train}")
-                    if t.train in READY_SOUNDS:
-                        print(f"Blocking input for {t}, sound={READY_SOUNDS[t.train]}")
-                        t.state.custom_acceleration_handler = self.handle_acceleration
+                if t.dist_reverse is not None:
+                    continue  # ignore subsequent reverses
+                t.dist_reverse = t.state.abs_distance
+                print(f"Reversed: {train}")
+                if self.measure and t.entry_speed_level is not None:
+                    time_since_clear = time.perf_counter() - t.time_clear
+                    time_since_trip = time.perf_counter() - t.time_trip
+                    write_measurement(train.id, t.platform, t.entry_speed_level, time_since_trip, time_since_clear)
+                if t.train in READY_SOUNDS:
+                    print(f"Blocking input for {t}, sound={READY_SOUNDS[t.train]}")
+                    t.state.custom_acceleration_handler = self.handle_acceleration
 
     def handle_acceleration(self, train: Train, controller: str, acc_input: float, cause: str):
         # print(f"Terminus handling acceleration for {train}")
@@ -335,7 +347,7 @@ class Terminus:
                 self.control.force_stop(train, "no platform")
                 return
             state = self.control[train]
-            self.entering = entering = ParkedTrain(train, state, state.track, platform)
+            self.entering = entering = ParkedTrain(train, state, state.track, platform, get_speed_index(state, 0., True))
             entering.dist_request = entering.state.signed_distance
             entering.state.restore_speed_after_reset = True
             self.trains.append(entering)
@@ -388,12 +400,12 @@ class Terminus:
                 # --- External trains ---
                 if not train.trips_contacts:
                     if entering.dist_clear is None and entering.get_position() > CONTACT_OFFSET + max_train_length:
-                        entering.dist_clear = entering.state.signed_distance
+                        entering.mark_cleared_contact()
                 # --- Managed trains ---
                 elif not self.control.generator.contact_status(self.port)[0]:  # possible sensor clear
                     if entering.dist_clear is None:
                         print("Sensor clear. Waiting for possible next wheel...")
-                        entering.dist_clear = entering.state.signed_distance
+                        entering.mark_cleared_contact()
                         # self.relay.open_channel(ENTRY_POWER)
                 elif entering.dist_clear is not None and entering.get_end_position() < CONTACT_OFFSET + 30:  # another wheel entered
                     print("Another wheel entered")
@@ -401,7 +413,7 @@ class Terminus:
                     # self.relay.close_channel(ENTRY_POWER)
                     continue
                 if entering.dist_clear is None and entering.get_position() > CONTACT_OFFSET + max_train_length:
-                    entering.dist_clear = entering.state.signed_distance
+                    entering.mark_cleared_contact()
                     print(f"Max train length reached. Setting as cleared. End = {entering.get_end_position()}")
                 # --- cleared switches ---
                 if self.entering is not None and self.entering.dist_clear is not None and entering.get_end_position() > 60:  # approx. 57 cm
@@ -881,6 +893,27 @@ DEPARTURE_SOUNDS = {  # (filename, volume)
     BUS: ("tram.mp3", 1.),
     # SHUTTLE: ("e-train.mp3", .3),
 }
+
+
+MEASUREMENT_DATA = []
+
+
+def write_measurement(name: str, platform: int, speed_level: int, time_since_trip: float, time_since_clear: float):
+    filename = 'terminus-measurements.json'
+    if not MEASUREMENT_DATA:
+        if os.path.isfile(filename):
+            with open(filename, 'r', encoding='utf-8') as f:
+                MEASUREMENT_DATA.extend(json.load(f))
+    MEASUREMENT_DATA.append({
+        "train": name,
+        "platform": platform,
+        "speed_level": speed_level,
+        "time_since_trip": time_since_trip,
+        "time_since_clear": time_since_clear,
+    })
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(MEASUREMENT_DATA, f)
+
 
 if __name__ == '__main__':
     # play_departure(ICE)
