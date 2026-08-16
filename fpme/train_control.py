@@ -23,6 +23,7 @@ EMERGENCY_STOP = 'emergency stop'
 
 @dataclass
 class TrainState:
+    control: 'TrainControl'
     train: Train
     ports: Set[str]
     active_functions: dict  # which functions are active by their TrainFunction handle
@@ -34,8 +35,6 @@ class TrainState:
     last_emergency_break: Tuple[float, str] = (0., "")
     speed_limits: Dict[str, float] = field(default_factory=dict)
     force_stopping: Optional[str] = None
-    signed_distance: float = 0.  # distance travelled in cm
-    abs_distance: float = 0.  # distance travelled in cm
     last_effect_uses: Dict[TrainFunction, float] = field(default_factory=dict)  # time as measured by perf_counter()
     modify_lock = threading.RLock()
     custom_acceleration_handler: Callable = None
@@ -45,6 +44,19 @@ class TrainState:
 
     def __repr__(self):
         return f"{self.train.name} {self.speed:.0f} -> {self.target_speed:.0f} func={self.active_functions} controlled by {len(self.controllers)}"
+
+    @property
+    def signed_distance(self):
+        if self.externally_managed:
+            return self.abs_distance
+        return self.control.generator.get_signed_distance(self.train.address)
+
+    @property
+    def abs_distance(self):
+        if self.externally_managed:
+            speed_cm_s = self.speed * 27.78 / 87
+            return time.perf_counter() * speed_cm_s
+        return self.control.generator.get_total_distance(self.train.address)
 
     @property
     def is_emergency_stopping(self):
@@ -61,7 +73,7 @@ class TrainState:
 
     @property
     def is_active(self):
-        return len(self.controllers) > 0 and self.inactive_time <= 30.
+        return self.externally_managed or (len(self.controllers) > 0 and self.inactive_time <= 30.)
 
     def set_speed_limit(self, name: str, limit: Optional[float], jerk=True, cause: str = None, new_track: str = None):
         # print(f"{self.train}: Speed-limit '{name}'={limit}" if limit is not None else f"{self.train}: Speed-limit '{name}' removed. From: {self.speed_limits}")
@@ -112,9 +124,11 @@ class TrainControl:
         self.trains = tuple(trains)
         self.ext_trains = tuple(ext_trains)
         self.all_trains = trains + ext_trains
-        self.states = {train: TrainState(train, set(), active_functions={f: True for f in train.functions if f.default_status}) for train in trains}
-        self.states.update({train: TrainState(train, set(), active_functions={}, speed=100., target_speed=100., externally_managed=True) for train in ext_trains})
+        self.states = {train: TrainState(self, train, set(), active_functions={f: True for f in train.functions if f.default_status}) for train in trains}
+        self.states.update({train: TrainState(self, train, set(), active_functions={}, speed=100., target_speed=100., externally_managed=True) for train in ext_trains})
         self.generator = SubprocessGenerator(max_generators=2)
+        for train in trains:
+            self.generator.set_model(train.address, train.model)
         self.speed_limit = None
         self.global_status_by_tag: Dict[str, bool] = {}
         self.sound: int = 0  # 0=off 1=announcements 2=all
@@ -400,10 +414,6 @@ class TrainControl:
         else:
             print(f"Removed controller was not registered with any train: {controller}")
 
-    # def deactivate(self, train: Train, cause: str):
-    #     """ user: If `None`, will remove all users. """
-    #     state = self[train]
-
     def update_trains(self, dt):  # repeatedly called from setup()
         if self.paused:
             return
@@ -412,8 +422,6 @@ class TrainControl:
             self.last_power_off = (time.perf_counter(), f"Power failure on {failing}")
         for train in self.trains:
             self._update_train(train, dt)
-        for train in self.ext_trains:
-            self._update_ext_train(train, dt)
 
     def _update_train(self, train: Train, dt: float):  # called by update_trains()
         state = self[train]
@@ -421,11 +429,6 @@ class TrainControl:
             if not self.is_power_on(train):
                 state.speed = 0
                 return
-            # --- Signed distance ---
-            if state.speed:
-                speed_cm_s = state.speed * 27.78 / 87
-                state.signed_distance += speed_cm_s * dt
-                state.abs_distance += abs(speed_cm_s) * dt
             # --- Deactivate after 30 seconds of inactivity ---
             if state.acc_input != 0 or state.speed != 0:
                 state.inactive_time = 0
@@ -470,15 +473,6 @@ class TrainControl:
         direction = math.copysign(1, state.speed if state.speed != 0 else state.target_speed)
         currently_in_reverse = direction < 0
         self._send(train, speed_code, currently_in_reverse, functions)
-
-    def _update_ext_train(self, train: Train, dt):
-        state = self[train]
-        with state.modify_lock:
-            state.inactive_time = 0
-            if state.speed:
-                speed_cm_s = state.speed * 27.78 / 87
-                state.signed_distance += speed_cm_s * dt
-                state.abs_distance += abs(speed_cm_s) * dt
 
     def _send(self, train: Train, speed_code: Optional[int], currently_in_reverse: bool, functions: dict):
         if train.address < 0:

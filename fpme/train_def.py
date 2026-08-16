@@ -5,10 +5,9 @@ from typing import Tuple, Sequence, Optional, List, Dict
 
 import numpy as np
 from PIL import Image
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
-from .model import DrivingModel
-from .speed_util import speeds
+from .model import DrivingModel, speeds, kmh_to_cms, unmask
 
 TAG_DEFAULT_LIGHT = 'default-light'
 TAG_DEFAULT_SOUND = 'default-sound'
@@ -67,7 +66,7 @@ class Train:
     address: int
     masked_speeds: Sequence[Optional[float]]
     acceleration: float
-    model: DrivingModel = DrivingModel()
+    incomplete_model: DrivingModel = DrivingModel()
     custom_deceleration: Optional[float] = None
     has_built_in_acceleration: bool = True
     supports_mm2: bool = True
@@ -95,8 +94,12 @@ class Train:
         return tuple(i for i, s in enumerate(self.masked_speeds) if s is not None)
 
     @cached_property
+    def model(self) -> DrivingModel:
+        return replace(self.incomplete_model, key_speeds=kmh_to_cms(unmask(self.masked_speeds)))
+
+    @cached_property
     def image(self) -> Image:
-        return Image.open(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets', self.img_path)) if self.img_path else None
+        return Image.open(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets', 'images', 'train_thumbnails', self.img_path)) if self.img_path else None
 
     @property
     def img_res(self):
@@ -155,15 +158,15 @@ S = Train(S_, "BR 648.2 (LINT 41)", "Märklin 37730", 48, speeds(137, 1.742), 35
           functions=(LIGHT, TrainFunction("Innenbeleuchtung", 1, False, (TAG_SPECIAL_LIGHT,), 1., None), SOUND, TrainFunction("Horn", 3, False, (TAG_SPECIAL_SOUND,)), INSTANT_ACCELERATION))
 SHUTTLE = Train(SHUTTLE_, "Shuttle", "Märklin 36967", 65, speeds(140, 1.5), 35., DrivingModel(reverse_time_with_sound=1., startup_time=4.), img_path="Shuttle.png",
                 functions=(LIGHT, TrainFunction("Innenbeleuchtung", 1, False, (TAG_SPECIAL_LIGHT,), 1., None), SOUND, TrainFunction("Horn", 3, False, (TAG_SPECIAL_SOUND,)), INSTANT_ACCELERATION))
-BEIGE = Train(SILBERLING, "BR 218", "Märklin 3074", 73, (0, None, 13, 20, 34, 60, 85, 100, 120, 141, 157, 172, 188, 204, 220), 25., img_path="Thumb_BR218_Beige.png",
+BEIGE = Train(SILBERLING, "BR 218", "Märklin 3074", 73, (0, None, 13, 20, 34, 60, 85, 100, 120, 141, 157, 172, 188, 204, 220), 25., img_path="BR218_Beige.png",
               functions=(LIGHT, SLOW_MODE, INSTANT_ACCELERATION))
-ROT = Train(RE_TUERKIS, 'BR 218', "Märklin 3075", 74, speeds(110), 40., img_path="Thumb_BR218_Rot.png",
+ROT = Train(RE_TUERKIS, 'BR 218', "Märklin 3075", 74, speeds(110), 40., img_path="BR218_Rot.png",
             functions=(LIGHT,
                        TrainFunction("Motor", 1, False, (TAG_DEFAULT_SOUND,), default_duration=None),
                        TrainFunction("Horn 1", 3, False, (TAG_SPECIAL_SOUND,)),
                        TrainFunction("Glocke", 2, False, (TAG_SPECIAL_SOUND,)),
                        TrainFunction("Pfeife", 4, False, (TAG_SPECIAL_SOUND,))))
-BUS = Train(BUS_, "VT95", "Märklin H0 3016", 62, (0, 1, 25, 55, 80, 100, 120, 140, 150, 160, 170, 180, 190, 200, 210), 40., img_path="Thumb_Schienenbus.png", stop_by_mm1_reverse=False, functions=(LIGHT,))
+BUS = Train(BUS_, "VT95", "Märklin H0 3016", 62, (0, 1, 25, 55, 80, 100, 120, 140, 150, 160, 170, 180, 190, 200, 210), 40., img_path="Schienenbus.png", stop_by_mm1_reverse=False, functions=(LIGHT,))
 
 # --- Freight trains ---
 DAMPF = Train(GUETER, "BR 81", "Märklin 29185", 78, speeds(210, 1.2), 30., img_path="Dampf.png",
@@ -174,7 +177,7 @@ DAMPF = Train(GUETER, "BR 81", "Märklin 29185", 78, speeds(210, 1.2), 30., img_
                          TrainFunction("Überdruck", 4, False, (TAG_SPECIAL_SOUND,))))
 DIESEL = Train(GUETER, "V 60 (BR 360)", "Märklin 29155", 72, speeds(180), 25., img_path="Diesel.png",
                functions=(LIGHT, SLOW_MODE, INSTANT_ACCELERATION))
-E40 = Train(GUETER, "BR E40", "Märklin 39140", 23, speeds(280, 1.0), 30., img_path="Thumb_E40.png", stop_by_mm1_reverse=False,
+E40 = Train(GUETER, "BR E40", "Märklin 39140", 23, speeds(280, 1.0), 30., img_path="E40.png", stop_by_mm1_reverse=False,
             functions=(LIGHT, INSTANT_ACCELERATION, TrainFunction('Horn', 1, False, (TAG_SPECIAL_SOUND,))))  # ToDo which ID is Horn?
 MW_TGV = Train(TGV_, 'TGV', "Märklin my world 29304", -1, (None,)*15, 0., functions=(), img_path="MW_TGV.png", trips_contacts=False)
 MW_LOK = Train(GUETER, 'Dampf/Diesel/E', 'Märklin my world 36270', -1, (None,)*15, 0., functions=(), img_path="MW_Lok.png", trips_contacts=False)
