@@ -264,7 +264,7 @@ class TrainControl:
             else:
                 if acc_input != 0 and state.acc_input * acc_input <= 0:  # switching acceleration direction or was 0 -> jump to next level
                     if state.speed is None or math.copysign(1, state.target_speed) == math.copysign(1, state.speed):  # only jump if not breaking because of previous reversing
-                        speed_idx = get_speed_index(train, state, acc_input, False, False)  # this rounds up/down depending on sign(acc_input)
+                        speed_idx = get_speed_index(state, acc_input, False, False)  # this rounds up/down depending on sign(acc_input)
                         if acc_input > 0:
                             speed_idx = max(1, speed_idx)
                         elif acc_input < 0:
@@ -273,7 +273,7 @@ class TrainControl:
                         abs_speed = max(0, abs_speed + acc_input * 1e-1)
                         prev_speed = state.speed
                         state.set_speed(math.copysign(abs_speed, state.target_speed))
-                        # print(f"Acceleration {train} = {acc_input} ({prev_speed} ({self._last_sent[train][1]} | {speed_idx}) -> {state.speed:.2f} ({get_speed_index(train, state, acc_input, True)}), target={state.target_speed})")
+                        # print(f"Acceleration {train} = {acc_input} ({prev_speed} ({self._last_sent[train][1]} | {speed_idx}) -> {state.speed:.2f} ({get_speed_index(state, acc_input, True)}), target={state.target_speed})")
                 state.acc_input = acc_input
 
     def emergency_stop_all(self, train: Optional[Train], cause: str):
@@ -461,7 +461,7 @@ class TrainControl:
 
     def _update_signal(self, train: Train):
         state = self[train]
-        speed_idx = get_speed_index(train, state, abs(state.target_speed) - abs(state.speed), True)
+        speed_idx = get_speed_index(state, abs(state.target_speed) - abs(state.speed), True)
         # if train.has_built_in_acceleration:
         speed_code = train.speed_codes[speed_idx]
         functions = {f.id: on for f, on in state.active_functions.items()}
@@ -489,9 +489,10 @@ class TrainControl:
             self.generator.set(train.address, speed_code, currently_in_reverse, functions, protocol, train.name or train.locomotive)
 
 
-def get_speed_index(train: Train, state: TrainState, abs_acceleration, limit_by_target: bool, round_up_to_first=True):
+def get_speed_index(state: TrainState, abs_acceleration, limit_by_target: bool, round_up_to_first=True):
     if state.speed is None:
         return 0
+    train = state.train
     abs_speed = abs(state.speed)
     closest_idx = int(numpy.argmin([abs(s - abs(state.target_speed)) for s in train.speeds]))  # ≥ 0
     if abs_acceleration > 0:  # ceil level

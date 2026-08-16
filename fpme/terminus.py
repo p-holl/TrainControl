@@ -376,6 +376,7 @@ class Terminus:
             # --- Contact tripped ---
             entering.dist_trip = entering.state.signed_distance
             entering.time_trip = time.perf_counter()
+            entering.entry_speed_level = get_speed_index(entering.state, 0., True)  # update recorded speed for measurement
             entering.state.track = 'terminus'
             if entering.dist_trip == entering.dist_request:
                 entering.dist_request -= -1e-3 if entering.state.is_in_reverse else 1e-3
@@ -913,6 +914,7 @@ def write_measurement(name: str, platform: int, speed_level: int, time_since_tri
     })
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(MEASUREMENT_DATA, f)
+    print(f"Recorded measurement for {name} (platform {platform}) with speed {speed_level}: {time_since_trip:.1f} sec / {time_since_clear:.1f} sec")
 
 
 if __name__ == '__main__':
