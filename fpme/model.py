@@ -12,7 +12,6 @@ def speeds(s15, exponent=1.3):
 class DrivingModel:
     key_speeds: Tuple[float, float, float, float, float, float, float, float, float, float, float, float, float, float, float] = speeds(60, 1.3)  # cm/s
     acceleration: float = 60.
-    deceleration: float = 60.
     deceleration_on_reverse: float = 1000.
     sound_function: Optional[int] = None  # function index. None if has no sound
     reverse_time_with_sound: float = 0.
@@ -25,47 +24,32 @@ class TrainTracker:
     # --- Last update ---
     last_update: float = -1  # perf_counter time
     speed_index: int = 0  # current signal [0, 15]
-    direction_changed_at: Optional[float] = None  # time when direction was last changed
+    direction_changed: float = -100.
     in_reverse: bool = False
-    sound_switched_on_at: Optional[float] = None  # time when sound was last switched on
+    sound_switched_on: float = -100.  # this causes a wait of model.startup_time if the train was stopped.
     functions: Dict[int, bool] = field(default_factory=dict)
-    # --- Pending event flags for current update ---
-    _pending_direction_changed: bool = field(default=False, init=False, repr=False)
-    _pending_sound_switched_on: bool = field(default=False, init=False, repr=False)
     # --- Model state ---
     speed: float = 0.  # Modeled signed speed (cm/s) (negative when reversed) at t=last_update
     sgn_distance: float = 0.  # distance traveled (cm) at t=last_update
     abs_distance: float = 0. # distance traveled (cm) at t=last_update
 
+    def __post_init__(self):
+        assert self.model.acceleration > 0
+        assert self.model.deceleration_on_reverse > 0
+
     def set(self, speed_index: int, in_reverse: bool, functions: Dict[int, bool], current_time: float):
-        # --- Determine event flags BEFORE integrating (using old state) ---
-        direction_changed = self.in_reverse != in_reverse
-        sound_switched_on = functions.get(self.model.sound_function, False) and not self.is_sound_on
-        
-        # --- Store which events happen in THIS update (only set if event occurred) ---
-        if direction_changed:
-            self._pending_direction_changed = True
-        else:
-            self._pending_direction_changed = False
-        
-        if sound_switched_on:
-            self._pending_sound_switched_on = True
-        else:
-            self._pending_sound_switched_on = False
-        
         # --- Integrate to now ---
         if self.last_update == -1:  # initialization event
             self.speed, self.sgn_distance, self.abs_distance = 0., 0., 0.
         else:
             self.speed, self.sgn_distance, self.abs_distance = self.integrate_to(current_time)
-        
-        # --- Update state and timestamps ---
+        # --- Update state ---
+        if functions.get(self.model.sound_function, False) and not self.is_sound_on and self.speed_index == 0:
+            self.sound_switched_on = current_time
+        if self.in_reverse != in_reverse:
+            self.direction_changed = current_time
         self.speed_index = speed_index
-        if direction_changed:
-            self.direction_changed_at = current_time
         self.in_reverse = in_reverse
-        if sound_switched_on:
-            self.sound_switched_on_at = current_time
         self.functions = functions
         self.last_update = current_time
 
@@ -81,16 +65,6 @@ class TrainTracker:
     @property
     def current_reverse_time(self):
         return self.model.reverse_time_with_sound if self.is_sound_on else 0
-
-    @property
-    def direction_changed(self) -> bool:
-        """Returns True if direction changed in the most recent set call."""
-        return self._pending_direction_changed
-
-    @property
-    def sound_switched_on(self) -> bool:
-        """Returns True if sound switched on in the most recent set call."""
-        return self._pending_sound_switched_on
 
     def integrate_to(self, t: float) -> Tuple[float, float, float]:
         """
@@ -109,87 +83,24 @@ class TrainTracker:
             sgn_distance: Total signed distance at time `t`.
             abs_distance: Total distance at time `t`.
         """
-        dt = t - self.last_update
         speed = self.speed
-        sgn_distance = self.sgn_distance
-        abs_distance = self.abs_distance
-        target = self.target_speed
-
-        # --- Handle direction change: decelerate to 0, then wait startup_time if sound is on ---
-        # Check if direction changed in current set OR we're still within the recovery period from a previous direction change
-        in_direction_recovery = (self.direction_changed_at is not None and 
-                                self.direction_changed_at <= self.last_update and
-                                t >= self.direction_changed_at)
-        
-        if (self.direction_changed or in_direction_recovery) and not self.sound_switched_on:
-            # Time to decelerate current speed to zero using deceleration_on_reverse
-            decel = self.model.deceleration_on_reverse
-            t_stop = abs(speed) / decel if decel > 0 else 0.
-
-            if dt <= t_stop:
-                # Still decelerating toward zero
-                direction = 1.0 if speed > 0 else (-1.0 if speed < 0 else 0.0)
-                new_speed = speed - direction * decel * dt
-                # Clamp so we don't overshoot past zero
-                if direction > 0:
-                    new_speed = max(new_speed, 0.0)
-                elif direction < 0:
-                    new_speed = min(new_speed, 0.0)
-                avg_speed = (speed + new_speed) / 2.0
-                sgn_distance += avg_speed * dt
-                abs_distance += abs(avg_speed) * dt
-                return new_speed, sgn_distance, abs_distance
-            else:
-                # Finish deceleration to zero
-                avg_speed = speed / 2.0
-                sgn_distance += avg_speed * t_stop
-                abs_distance += abs(avg_speed) * t_stop
-                speed = 0.0
-                dt -= t_stop
-
-                # Wait for reverse_time_with_sound (startup delay before moving in new direction)
-                reverse_wait = self.current_reverse_time
-                if dt <= reverse_wait:
-                    # Still waiting, speed stays 0
-                    return 0.0, sgn_distance, abs_distance
-                else:
-                    dt -= reverse_wait
-                    # Fall through to acceleration phase below with speed=0
-
-        # --- Handle sound-switch-on startup delay (only if not already consumed by reverse wait) ---
-        if self.sound_switched_on and speed == 0.0 and target != 0.0:
-            startup = self.model.startup_time
-            if dt <= startup:
-                return 0.0, sgn_distance, abs_distance
-            else:
-                dt -= startup
-
-        # --- Accelerate/decelerate linearly toward target speed ---
-        if speed < target:
-            rate = self.model.acceleration
-            t_reach = (target - speed) / rate if rate > 0 else 0.
-        elif speed > target:
-            rate = self.model.deceleration
-            t_reach = (speed - target) / rate if rate > 0 else 0.
+        target_speed = self.target_speed
+        # --- Idle while sound is blocking ---
+        if self.is_sound_on:
+            t0_if_startup = self.sound_switched_on + self.model.startup_time
+            t0_if_reversed = self.direction_changed + self.model.reverse_time_with_sound  # ToDo add deceleration_on_reverse
+            t0 = max(self.last_update, t0_if_startup, t0_if_reversed)
         else:
-            rate = 0.
-            t_reach = 0.
-
-        if dt <= t_reach:
-            new_speed = speed + (rate * dt if speed < target else -rate * dt)
-            avg_speed = (speed + new_speed) / 2.0
-            sgn_distance += avg_speed * dt
-            abs_distance += abs(avg_speed) * dt
-            return new_speed, sgn_distance, abs_distance
-        else:
-            # Reach target, then travel remaining time at constant target speed
-            avg_speed = (speed + target) / 2.0
-            sgn_distance += avg_speed * t_reach
-            abs_distance += abs(avg_speed) * t_reach
-            dt -= t_reach
-            sgn_distance += target * dt
-            abs_distance += abs(target) * dt
-            return target, sgn_distance, abs_distance
+            t0 = self.last_update
+        if t0 >= t:  # Still waiting for sound to finish
+            return 0., self.sgn_distance, self.abs_distance
+        # --- Accelerate + constant ---
+        acc_duration = min(abs(target_speed - speed) / self.model.acceleration, t - t0)
+        const_duration = t - t0 - acc_duration
+        avg_speed_while_acc = (speed + target_speed) / 2
+        sgn_distance = self.sgn_distance + avg_speed_while_acc * acc_duration + target_speed * const_duration
+        abs_distance = self.abs_distance + abs(avg_speed_while_acc) * acc_duration + abs(target_speed) * const_duration
+        return target_speed, sgn_distance, abs_distance
 
 
 def kmh_to_cms(kmh):
@@ -236,7 +147,6 @@ if __name__ == '__main__':
     tracker = TrainTracker(model=SHUTTLE.model)
     tracker.set(speed_index=0, in_reverse=False, functions={2: True}, current_time=0.)
     tracker.set(speed_index=5, in_reverse=True, functions={2: True}, current_time=1.)
-    tracker.set(speed_index=6, in_reverse=True, functions={2: True}, current_time=1.0001)
     # target speed = 40 cm/s, accel = 10 cm/s^2 -> reaches target at t=4
     print(tracker.integrate_to(2.))
     # top_speed, exponent = fit_speeds((0, 2, 5, 10, 15, 22, 30, 41, 51, 64, 77, 91, 106, 120, 136))
