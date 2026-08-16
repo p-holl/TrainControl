@@ -42,6 +42,8 @@ def async_play(sound: Union[str, pygame.mixer.SoundType], left_vol=1., right_vol
 
 
 def play_announcement(text: str, language='German', speed=160, left_vol=1., right_vol=1., cue='gong', cue_vol=.4):
+    if not text:
+        return
     Thread(target=_play_announcement, args=(text, language, speed, left_vol, right_vol, cue, cue_vol)).start()
 
 
