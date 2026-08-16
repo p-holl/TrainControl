@@ -2,6 +2,7 @@ import json
 import logging
 import os.path
 import random
+import sys
 import time
 import warnings
 from dataclasses import dataclass
@@ -168,7 +169,7 @@ class Terminus:
         self.logger.addHandler(file_handler)
         
         # Console handler
-        console_handler = logging.StreamHandler()
+        console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
