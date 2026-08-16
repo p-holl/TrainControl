@@ -95,7 +95,10 @@ class Train:
 
     @cached_property
     def model(self) -> DrivingModel:
-        return replace(self.incomplete_model, key_speeds=kmh_to_cms(unmask(self.masked_speeds)))
+        sound = [f for f in self.functions if TAG_DEFAULT_SOUND in f.tags]
+        return replace(self.incomplete_model,
+                       key_speeds=kmh_to_cms(unmask(self.masked_speeds)),
+                       sound_function=sound[0].id if sound else None)
 
     @cached_property
     def image(self) -> Image:

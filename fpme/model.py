@@ -85,7 +85,7 @@ class TrainTracker:
         target = self.target_speed
 
         # --- Handle direction change: decelerate to 0, then wait startup_time if sound is on ---
-        if self.direction_changed:
+        if self.direction_changed and not self.sound_switched_on:
             # Time to decelerate current speed to zero using deceleration_on_reverse
             decel = self.model.deceleration_on_reverse
             t_stop = abs(speed) / decel if decel > 0 else 0.
@@ -196,6 +196,11 @@ def fit_speeds(measured: tuple):
 
 
 if __name__ == '__main__':
-    print(kmh_to_cms())
+    from fpme.train_def import SHUTTLE
+    tracker = TrainTracker(model=SHUTTLE.model)
+    tracker.set(speed_index=0, in_reverse=False, functions={2: True}, current_time=0.)
+    tracker.set(speed_index=5, in_reverse=True, functions={2: True}, current_time=1.)
+    # target speed = 40 cm/s, accel = 10 cm/s^2 -> reaches target at t=4
+    print(tracker.integrate_to(2.))
     # top_speed, exponent = fit_speeds((0, 2, 5, 10, 15, 22, 30, 41, 51, 64, 77, 91, 106, 120, 136))
     # print(f"Top speed: {top_speed}, exponent: {exponent}")
