@@ -11,10 +11,11 @@ from typing import Optional, List, Tuple, Dict
 
 from fpme.audio import play_announcement, play_background_loop, async_play, set_background_volume
 from fpme.helper import schedule_at_fixed_rate
-from fpme.relay8 import Relay8
+from fpme.relay8 import Relay8, RelayManager
 from fpme.train_control import TrainControl, TrainState, get_speed_index
 from fpme.train_def import Train, ICE, S, E_RB, E_BW, E40, DAMPF, BEIGE, ROT, DIESEL, BUS, train_by_name, MW_TGV, SHUTTLE
 
+# 6: first switch primary, 7: first switch secondary, 8: both secondary switches
 SWITCH_STATE = {  # True -> open_channel, False -> close_channel
     1: {6: False, 8: True},
     2: {6: False, 8: False},
@@ -913,7 +914,7 @@ def write_measurement(name: str, platform: int, speed_level: int, time_since_tri
         "time_since_clear": time_since_clear,
     })
     with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(MEASUREMENT_DATA, f)
+        json.dump(MEASUREMENT_DATA, f, indent=2)
     print(f"Recorded measurement for {name} (platform {platform}) with speed {speed_level}: {time_since_trip:.1f} sec / {time_since_clear:.1f} sec")
 
 
