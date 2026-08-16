@@ -95,6 +95,35 @@ class Relay8:
         return NATIVE.usb_relay_device_get_num_relays(self.handle)
 
 
+class FakeRelay8(Relay8):
+
+    def __init__(self, num_channels=8):
+        super().__init__("fake", None)
+        self._num_channels = num_channels
+
+    def close(self):
+        pass
+
+    def open_channel(self, channel, tries=3):
+        pass
+
+    def close_channel(self, channel, tries=3):
+        pass
+
+    def set_channel_open(self, channel: int, value: bool):
+        pass
+
+    def close_all_channels(self):
+        pass
+
+    def pulse(self, channel: int, duration=0.1):
+        pass
+
+    @property
+    def num_channels(self):
+        return self._num_channels
+
+
 def list_devices() -> Sequence[str]:
     global _INIT
     if not _INIT:
