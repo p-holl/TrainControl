@@ -496,7 +496,10 @@ def get_speed_index(state: TrainState, abs_acceleration, limit_by_target: bool, 
         return 0
     train = state.train
     abs_speed = abs(state.speed)
-    closest_idx = int(numpy.argmin([-1] + [abs(s - abs(state.target_speed)) for s in train.speeds]))  # ≥ 0
+    diffs = [abs(s - abs(state.target_speed)) for s in train.speeds]
+    if not diffs:
+        return None
+    closest_idx = int(numpy.argmin(diffs))  # ≥ 0
     if abs_acceleration > 0:  # ceil level
         greater = [i for i, s in enumerate(train.speeds) if s >= abs_speed]
         speed_idx = greater[0] if greater else len(train.speeds) - 1
