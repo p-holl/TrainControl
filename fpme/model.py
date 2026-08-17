@@ -66,7 +66,7 @@ class TrainTracker:
     def current_reverse_time(self):
         return self.model.reverse_time_with_sound if self.is_sound_on else 0
 
-    def integrate_to(self, t: float) -> Tuple[float, float, float]:
+    def integrate_to(self, t: float, eps=1e-5) -> Tuple[float, float, float]:
         """
         Computes the velocity and cumulative distance traveled at time `t > last_update`, assuming no new signal has been sent since.
 
@@ -95,12 +95,14 @@ class TrainTracker:
         if t0 >= t:  # Still waiting for sound to finish
             return 0., self.sgn_distance, self.abs_distance
         # --- Accelerate + constant ---
-        acc_duration = min(abs(target_speed - speed) / self.model.acceleration, t - t0)
-        const_duration = t - t0 - acc_duration
+        max_acc_duration = max(abs(target_speed - speed) / self.model.acceleration, eps)
+        acc_duration = min(max_acc_duration, t - t0)
+        const_duration = max(0, t - t0 - acc_duration)
         avg_speed_while_acc = (speed + target_speed) / 2
         sgn_distance = self.sgn_distance + avg_speed_while_acc * acc_duration + target_speed * const_duration
         abs_distance = self.abs_distance + abs(avg_speed_while_acc) * acc_duration + abs(target_speed) * const_duration
-        return target_speed, sgn_distance, abs_distance
+        final_speed = target_speed * acc_duration / max_acc_duration + speed * (1 - acc_duration / max_acc_duration)
+        return final_speed, sgn_distance, abs_distance
 
 
 def kmh_to_cms(kmh):
