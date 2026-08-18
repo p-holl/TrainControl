@@ -190,6 +190,7 @@ class TKGUI:
         self.window.bind("<KeyPress-Down>", lambda e: self.control.set_acceleration_control(self.control.trains[2], "tk", -1., "Up"))
         self.window.bind("<KeyRelease-Down>", lambda e: self.control.set_acceleration_control(self.control.trains[2], "tk", 0, "Up"))
         self.window.bind("<Left>", lambda e: self.control.reverse(self.control.trains[2], "tk", emergency_stop=True))
+        self.window.bind("<Right>", lambda e: self.terminus is not None and self.terminus.request_entry(self.control.trains[2]))
         self.window.protocol("WM_DELETE_WINDOW", lambda: self.terminate())
 
     def launch(self):
