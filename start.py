@@ -1,6 +1,7 @@
 import sys
 import os
 
+from fpme.schedule import create_scheduler
 from fpme.train_control import TrainControl
 from fpme.train_def import TRAINS, GUETER
 
@@ -27,8 +28,9 @@ if __name__ == '__main__':
     inputs = InputManager(control)
     inputs.start_detection()
     relay = RelayManager()
+    scheduler = create_scheduler(control, drive_duration=6.5 * 60, pause_duration=30.)
     # Thread(target=lambda: dash_app.Server(control).launch(port=PORT)).start()
-    gui = tk_gui.TKGUI(control, relay, inputs, infos=[], fullscreen=False)
+    gui = tk_gui.TKGUI(control, scheduler, relay, inputs, infos=[], fullscreen=False)
 
     def setup_terminal(relay: Relay8):
         print("Relay detected. Setting up terminus.")

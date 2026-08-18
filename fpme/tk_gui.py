@@ -10,6 +10,7 @@ from PIL import ImageTk, Image
 from .helper import fit_image_size
 from .hid_input import InputManager, CONTROLS
 from .relay8 import RelayManager
+from .schedule import Scheduler, play_pause_announcement, play_resume_announcement
 from .signal_gen import list_com_ports
 from .terminus import Terminus
 from .train_control import TrainControl
@@ -18,8 +19,9 @@ from .train_def import Train, obstacle, MW_TGV
 
 class TKGUI:
 
-    def __init__(self, control: TrainControl, relays: RelayManager, inputs: InputManager, infos=(), fullscreen=False):
+    def __init__(self, control: TrainControl, scheduler: Scheduler, relays: RelayManager, inputs: InputManager, infos=(), fullscreen=False):
         self.control = control
+        self.scheduler = scheduler
         self.relays = relays
         self.terminus = None
         self.selected_platform = None
@@ -70,6 +72,8 @@ class TKGUI:
         self.power_off_highlight.pack()
         self.power_on_highlight = tk.Label(event_pane, text="Power on")
         self.power_on_highlight.pack()
+        self.timer_label = tk.Label(event_pane, text="Timer")
+        self.timer_label.pack()
         # --- Trains ---
         # tk.Label(text="Controls", font='Helvetica 14 bold').pack()
         controls_pane = tk.Frame(self.window)
@@ -178,6 +182,7 @@ class TKGUI:
         self.window.bind("<BackSpace>", lambda e: self.clear_platform())
         self.window.bind("<d>", lambda e: print(self.control.generator.format_state()))
         self.window.bind("<s>", lambda e: self.terminus and self.terminus.reset_switches())
+        self.window.bind("<t>", lambda e: self.scheduler.start(0) if not self.scheduler.running else self.scheduler.stop())
         self.window.bind("<KeyPress-Return>", lambda e: self.external_train_enter())
         self.window.bind("<KeyRelease-Return>", lambda e: self.enter_released())
         self.window.bind("<KeyPress-Up>", lambda e: self.control.set_acceleration_control(self.control.trains[2], "tk", 1., "Up"))
@@ -285,6 +290,10 @@ class TKGUI:
         self.light_status.config(text="on" if self.control.light else ("?" if self.control.light is None else "off"))
         self.sound_status.config(text=["off", "station", "all"][self.control.sound])
         self.speed_limit.config(text=str(self.control.speed_limit))
+        positions = ["", "Pause "]
+        time_left = self.scheduler.time_left
+        time_left = f"{time_left//60:.0f}:{time_left%60:.0f}"
+        self.timer_label.config(text=f"{positions[self.scheduler.current_position]}{time_left}" if self.scheduler.running else "Timer off")
         # --- Terminus plan ---
         if self.terminus:
             self.canvas.pack()
