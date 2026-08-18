@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import Optional
 
 from fpme.audio import async_play
+from fpme.train_control import TrainControl
 
 
 class Scheduler:
@@ -23,6 +24,8 @@ class Scheduler:
         self._generation = 0
         self._position = 0
         self._deadline: Optional[float] = None
+        self.on_start = None
+        self.on_stop = None
 
     def start(self, position: Optional[int] = None) -> None:
         """Start or reset the scheduler.
@@ -42,6 +45,7 @@ class Scheduler:
                 self._timer.cancel()
             self._position = position
             self._schedule_locked(position, generation)
+        self.on_start()
 
     def stop(self) -> None:
         """Stop the scheduler. Has no effect if it is already stopped."""
@@ -51,6 +55,7 @@ class Scheduler:
                 self._timer.cancel()
                 self._timer = None
             self._deadline = None
+        self.on_stop()
 
     @property
     def running(self):
@@ -218,17 +223,29 @@ def play_resume_announcement():
     async_play("ansagen/gong3-reverb.wav")
 
 
-def create_scheduler(control, drive_duration: float, pause_duration: float):
+def create_scheduler(control: TrainControl, drive_duration: float, pause_duration: float):
+    def reset():
+        for train in control.trains:
+            state = control[train]
+            state.set_speed_limit('pause', None, cause='scheduler')
     def phase_end(phase: int):
         if phase == 0:
             print(">>> Pause <<<")
-            control.power_off(None, cause="Pause")
+            # control.power_off(None, cause="Pause")
+            for train in control.trains:
+                state = control[train]
+                is_entering = state.track == 'terminus' and state.speed != 0
+                if not is_entering:
+                    state.set_speed_limit('pause', 0., jerk=False, cause='scheduler')
             play_pause_announcement()
         else:
             print(">>> Pause Ende <<<")
-            control.power_on(None, cause="Pause")
+            reset()
             play_resume_announcement()
-    return Scheduler([drive_duration, pause_duration], phase_end)
+    scheduler = Scheduler([drive_duration, pause_duration], phase_end)
+    scheduler.on_stop = lambda: reset() or play_resume_announcement()
+    scheduler.on_start = lambda: reset() or play_resume_announcement()
+    return scheduler
 
 
 if __name__ == '__main__':

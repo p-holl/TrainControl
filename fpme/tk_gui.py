@@ -292,7 +292,7 @@ class TKGUI:
         self.speed_limit.config(text=str(self.control.speed_limit))
         positions = ["", "Pause "]
         time_left = self.scheduler.time_left
-        time_left = f"{time_left//60:.0f}:{time_left%60:.0f}"
+        time_left = f"{time_left//60:.0f}:{int(math.ceil(time_left % 60)):02d}"
         self.timer_label.config(text=f"{positions[self.scheduler.current_position]}{time_left}" if self.scheduler.running else "Timer off")
         # --- Terminus plan ---
         if self.terminus:
