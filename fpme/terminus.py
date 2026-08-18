@@ -961,9 +961,9 @@ def delayed_now(delay_minutes: int):
 
 
 # ToDo sounds only if enabled
-READY_SOUNDS = {
+READY_SOUNDS = {  # (name, duration, volume)
     ICE: ("whistle1.wav", 1.5, 1.),
-    S: ("door-beep-S-Bahn.wav", 5., 1.),
+    S: ("door-beep-S-Bahn.wav", 3.5, 1.),
     SHUTTLE: ("door-beep-RE.wav", 5., 1.),
     E_BW: ("whistle2.wav", 1.5, 1.),
     E_RB: ("door-beep-RE.wav", 5., 1.),
@@ -972,7 +972,7 @@ READY_SOUNDS = {
     BEIGE: ("diesel-steam.wav", 0., 1.),
     ROT: ("diesel-steam.wav", 2., 1.),
     DIESEL: ("diesel-steam.wav", 2., 1.),
-    BUS: ("doors-tram.wav", 4., 1.),
+    BUS: ("doors-tram.wav", 1.5, 1.),
 }
 
 DEPARTURE_SOUNDS = {  # (filename, volume)
