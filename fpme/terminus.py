@@ -813,7 +813,7 @@ def play_special_announcement(train: Train, platform: int, delay_minutes: int, e
         "ist eine defekte Tür.",
         "ist die Bereitstellung weiterer Wagen.",
         "ist ein defektes Stellwerk.",
-        "ist eine Oberleitungsstörung.",
+        "ist eine Ober-Leitungs-Störung.",
         "ist ein Polizeieinsatz.",
         "ist eine Reparatur am Zug.",
         "ist eine Reparatur an der Oberleitung.",
@@ -859,7 +859,7 @@ def play_special_announcement(train: Train, platform: int, delay_minutes: int, e
     ]
     fake_reasons = [
         "ist die Sichtung eines unbekannten Flugobjekts auf der Strecke.",
-        # "ist die verspätete Bereitstellung von Gleisen.",
+        "ist ein Geister-Zug auf der Strecke.",
         "ist ein fehlender Bahnhof auf der Strecke.",
         "ist die Verspätung eines nachfolgenden Zuges.",
         "ist die Überschwemmung des Bordrestaurants.",
@@ -871,9 +871,6 @@ def play_special_announcement(train: Train, platform: int, delay_minutes: int, e
         "ist beschädigter Anker am Zug.",
         "ist eine Baustelle im Zug.",
         "ist der Sommer.",
-        "ist der Herbst.",
-        "ist der Winter.",
-        "ist der Frühling.",
         "ist ein umgestürzter Baumkuchen auf der Strecke.",
         "ist ein Unfall in der Zugtoilette.",
         "ist ein Maulwurf auf der Strecke.",
@@ -892,7 +889,6 @@ def play_special_announcement(train: Train, platform: int, delay_minutes: int, e
         "ist ein Meteoriteneinschlag auf er Strecke.",
         "ist der Fund einer Fliegerbombe.",
         "ist eine Toilettenpause.",
-        "sind Beeinträchtigungen aufgrund des Klimawandels.",
         "ist ein Fahrrad in Wagen drei.",
         "sind Verzögerung beim Ausrollen eines roten Teppichs für den Bürgermeister.",
         "ist eine Signalstörungs-Behebungs-Planungs-Besprechung am Gleis.",
@@ -901,30 +897,24 @@ def play_special_announcement(train: Train, platform: int, delay_minutes: int, e
         "ist eine vorübergehenden Sperrung aller Bordtoiletten.",
         "ist die verfrühte Bereitstellung des Zuges.",
         "ist eine Oberleitungsanordnung.",
-        "ist die tierärztliche Versorgung eines an Bord befindlichen Hundes.",
+        "ist die tierärztliche Versorgung eines an Bord befindlichen Haustiers.",
         "ist die Landung eines Passagierflugzeugs auf der Strecke.",
         "ist fehlendes Toilettenpapier wegen Hamsterkäufen.",
         "ist die verspätete Pizza-Lieferung des Zugführers.",
-        "die Suche nach der EC-Karte eines Mitreisenden.",
-        "der Raketenstart für einen GPS-Satelliten.",
+        "der verlorene Geldbeutel eines Mitreisenden.",
         "die blendende Sonne.",
-        "ist der Ausfall eines Feuerwehreinsatzes.",
-        "ist ein Übersetzungsfehler auf der Speisekarte.",
-        "ist eine Aussage des Bundeskanzlers.",
-        "ist die Beschädigung einer Kommunikationsleitung der Bahn durch einen Bagger.",
+        "ist ein Tippfehler auf dem Fahrplan.",
+        "ist eine umstrittene Aussage des Bundeskanzlers.",
+        "ist die Beschädigung einer Kommunikationsleitung.",
         "ist ein Marderschaden.",
         "ist ein Defekt an der Klimaanlage.",
-        "bist du.",
         "sind archäologische Ausgrabungen.",
         "ist die Warnung eines Hellsehers.",
         "ist eine Taube auf dem Zug.",
     ]
-    # play_announcement_async(sentences[0])
     if train in TARGETS:
         name, target = TARGETS[train][platform]
         hour, minute, delay = delayed_now(max(5, delay_minutes))
-        # delay_text = f", heute circa {delay} Minuten später." if delay else ". Vorsicht bei der Einfahrt."
-        # speech = f"Gleis {platform}, Einfahrt. {connection}, nach: {target}, Abfahrt {hour} Uhr {minute}{delay_text}"
         reasons = fake_reasons if random.random() < .3 else real_reasons
         of = {S: 'der', E_RB: 'der'}.get(train, 'des')
         exit_type = "Abfahrt" if entered_seconds_ago > 45 else "Weiterfahrt"

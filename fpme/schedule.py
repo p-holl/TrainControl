@@ -93,7 +93,7 @@ class Scheduler:
             self._schedule_locked(next_position, generation)
 
 
-def play_pause_announcement():
+def play_pause_announcement(fake_prob=.5):
     real_reasons = [
         "sind Gegenstände im Gleis.",
         "ist eine Störung im Betriebsablauf.",
@@ -157,7 +157,7 @@ def play_pause_announcement():
     ]
     fake_reasons = [
         "ist die Sichtung eines unbekannten Flugobjekts auf der Strecke.",
-        # "ist die verspätete Bereitstellung von Gleisen.",
+        "ist ein Geister-Zug auf der Strecke.",
         "ist ein fehlender Bahnhof auf der Strecke.",
         "ist die Verspätung eines nachfolgenden Zuges.",
         "ist die Überschwemmung des Bordrestaurants.",
@@ -169,9 +169,6 @@ def play_pause_announcement():
         "ist beschädigter Anker am Zug.",
         "ist eine Baustelle im Zug.",
         "ist der Sommer.",
-        "ist der Herbst.",
-        "ist der Winter.",
-        "ist der Frühling.",
         "ist ein umgestürzter Baumkuchen auf der Strecke.",
         "ist ein Unfall in der Zugtoilette.",
         "ist ein Maulwurf auf der Strecke.",
@@ -213,8 +210,7 @@ def play_pause_announcement():
         "ist die Warnung eines Hellsehers.",
         "ist eine Taube auf dem Zug.",
     ]
-    reasons = fake_reasons if random.random() < .3 else real_reasons
-    reason = random.choice(reasons)
+    reason = random.choice(fake_reasons if random.random() < fake_prob else real_reasons)
     from fpme.audio import play_announcement
     play_announcement(f"Bitte beachten Sie: Der Zugverkehr wird vorübergehend eingestellt. Grund dafür " + reason)
 
