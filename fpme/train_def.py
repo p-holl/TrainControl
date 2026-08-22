@@ -146,7 +146,7 @@ BUS_ =              TrainInfo("Bus", "🚌", .8, max_delay=10, delay_rate=0.1, m
 # --- Wagons ---
 INTERREGIO_BLAU =   TrainInfo("IC", "🚉", .3, switch_avoidance=1., max_speed_by_track={'regional': 140})
 RB_ROT =            TrainInfo("RB", "🚉", .7, switch_avoidance=.55, max_speed_by_track={'regional': 140})
-SILBERLING =        TrainInfo("N/E", "🚉", .6, switch_avoidance=.55, max_speed_by_track={'regional': 140})  # Nahverkehrszug / Eilzug
+SILBERLING =        TrainInfo("N/E", "🚉", .6, switch_avoidance=.55, max_speed_by_track={'regional': 140}, max_speed_in_station=(40, 40, 60))  # Nahverkehrszug / Eilzug
 RE_TUERKIS =        TrainInfo("RE", "🚉", .35, max_speed_in_station=(55, 55, 65), switch_avoidance=.45, max_speed_by_track={'regional': 140})
 TGV_ =           TrainInfo(None, "🚂/🛲", 1., max_delay=15, delay_rate=.1)
 
@@ -161,9 +161,10 @@ S = Train(S_, "BR 648.2 (LINT 41)", "Märklin 37730", 48, speeds(137, 1.742), 35
           functions=(LIGHT, TrainFunction("Innenbeleuchtung", 1, False, (TAG_SPECIAL_LIGHT,), 1., None), SOUND, TrainFunction("Horn", 3, False, (TAG_SPECIAL_SOUND,)), INSTANT_ACCELERATION))
 SHUTTLE = Train(SHUTTLE_, "Shuttle", "Märklin 36967", 65, speeds(140, 1.5), 35., DrivingModel(reverse_time_with_sound=1., startup_time=4.), img_path="Shuttle.png",
                 functions=(LIGHT, TrainFunction("Innenbeleuchtung", 1, False, (TAG_SPECIAL_LIGHT,), 1., None), SOUND, TrainFunction("Horn", 3, False, (TAG_SPECIAL_SOUND,)), INSTANT_ACCELERATION))
-BEIGE = Train(SILBERLING, "BR 218", "Märklin 3074", 73, (0, None, 13, 20, 34, 60, 85, 100, 120, 141, 157, 172, 188, 204, 220), 25., img_path="BR218_Beige.png",
+BEIGE = Train(SILBERLING, "BR 218", "Märklin 3074", 73, (0, None, 13, 20, 26, 50, 85, 100, 120, 141, 157, 172, 188, 204, 220), 25., img_path="BR218_Beige.png",
               functions=(LIGHT, SLOW_MODE, INSTANT_ACCELERATION))
-ROT = Train(RE_TUERKIS, 'BR 218', "Märklin 3075", 74, speeds(110), 40., img_path="BR218_Rot.png",
+ROT = Train(RE_TUERKIS, 'BR 218', "Märklin 3075", 74, (0, 1, 3, 6, 10, 15, 20, 26, 33, 40, 48, 56, 65, 75, 85), 30., img_path="BR218_Rot.png",
+            incomplete_model=DrivingModel(acceleration=10, reverse_time_with_sound=1., startup_time=2.),
             functions=(LIGHT,
                        TrainFunction("Motor", 1, False, (TAG_DEFAULT_SOUND,), default_duration=None),
                        TrainFunction("Horn 1", 3, False, (TAG_SPECIAL_SOUND,)),
