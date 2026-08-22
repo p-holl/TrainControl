@@ -88,6 +88,8 @@ class ParkedTrain:
 
     @property
     def entered_forward(self):
+        if self.dist_trip is None:
+            return False
         if self.dist_clear is None:
             return (self.dist_trip - self.dist_request) > 0
         else:
