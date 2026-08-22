@@ -49,6 +49,8 @@ class TrainState:
     def signed_distance(self):
         if self.externally_managed:
             return self.abs_distance
+        if self.train.address < 0:
+            return 0
         return self.control.generator.get_signed_distance(self.train.address)
 
     @property
@@ -56,6 +58,8 @@ class TrainState:
         if self.externally_managed:
             speed_cm_s = self.speed * 27.78 / 87
             return time.perf_counter() * speed_cm_s
+        if self.train.address < 0:
+            return 0
         return self.control.generator.get_total_distance(self.train.address)
 
     @property

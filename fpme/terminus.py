@@ -247,7 +247,7 @@ class Terminus:
             dist_trip = train_data['dist_trip']
             dist_clear = train_data['dist_clear']
             dist_reverse = train_data['dist_reverse']
-            state = self.control[train] if train in self.control else TrainState(train, set(), {})
+            state = self.control[train] if train in self.control else TrainState(self.control, train, set(), {})
             sgn_delta = state.signed_distance - train_data['sgn_dist']
             abs_delta = state.abs_distance - train_data['abs_dist']  # typically < 0
             self.trains.append(ParkedTrain(train, state, 'terminus', platform, None,
@@ -279,7 +279,7 @@ class Terminus:
 
     def set_occupied(self, platform: int, train: Train):
         self.logger.debug(f"Setting platform {platform} as occupied for train {train}")
-        state = self.control[train] if train in self.control else TrainState(train, set(), {})
+        state = self.control[train] if train in self.control else TrainState(self.control, train, set(), {}, {})
         state.track = 'terminus'
         if self.entering is not None and self.entering.train == train:
             self.clear_entering()
